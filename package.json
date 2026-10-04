@@ -1,0 +1,32 @@
+{
+  "name": "kulki",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Gra w kulki – przeglądarkowa gra logiczna w jednym pliku index.html",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "build": "node tools/build.js",
+    "lint": "eslint . && prettier --check . && tsc --noEmit",
+    "format": "prettier --write .",
+    "test:unit": "vitest run --project unit",
+    "test:integration": "vitest run --project integration",
+    "test:e2e": "playwright test --config tests/e2e/playwright.config.js"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.63.0",
+    "@types/jsdom": "30.0.0",
+    "@types/node": "20.19.43",
+    "esbuild": "0.28.2",
+    "eslint": "10.12.0",
+    "globals": "17.13.0",
+    "jsdom": "29.1.1",
+    "prettier": "3.9.9",
+    "typescript": "7.0.2",
+    "vitest": "4.1.11"
+  }
+}

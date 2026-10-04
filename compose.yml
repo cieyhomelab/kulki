@@ -1,0 +1,12 @@
+# Local and VPS run: serves the built single-file game on a static web server.
+#   docker compose up --build
+name: kulki
+
+services:
+  web:
+    build:
+      context: .
+      target: web
+    ports:
+      - '${WEB_PORT:-8080}:80'
+    restart: unless-stopped
