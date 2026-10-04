@@ -1,6 +1,17 @@
 :root {
   color-scheme: light dark;
   font-family: system-ui, sans-serif;
+  --cell: min(64px, calc((100vh - 150px) / 9), calc((100vw - 260px) / 9));
+  --board-bg: #cfd4dc;
+  --cell-bg: #e6e9ee;
+  --cell-border: #aab1bd;
+  --c1: #e53935;
+  --c2: #fb8c00;
+  --c3: #fdd835;
+  --c4: #43a047;
+  --c5: #00acc1;
+  --c6: #1e53d6;
+  --c7: #8e24aa;
 }
 
 body {
@@ -8,4 +19,132 @@ body {
   min-height: 100vh;
   display: grid;
   place-items: center;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+h1 {
+  margin: 0 auto 0 0;
+  font-size: 1.6rem;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 110px;
+}
+
+.stat-label {
+  font-size: 0.85rem;
+  opacity: 0.75;
+}
+
+.stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.layout {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(9, var(--cell));
+  grid-template-rows: repeat(9, var(--cell));
+  gap: 2px;
+  padding: 2px;
+  background: var(--board-bg);
+  border-radius: 6px;
+}
+
+.cell {
+  position: relative;
+  background: var(--cell-bg);
+  border: 1px solid var(--cell-border);
+  box-sizing: border-box;
+}
+
+.cell[data-selected='true'] {
+  outline: 3px solid #111;
+  outline-offset: -3px;
+}
+
+.cell:not([data-color='0'])::after,
+.preview-ball {
+  content: '';
+  position: absolute;
+  inset: 12%;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 35% 30%,
+    #fff 0,
+    var(--ball) 45%,
+    color-mix(in srgb, var(--ball) 55%, #000) 100%
+  );
+}
+
+.preview-ball {
+  position: static;
+  width: 36px;
+  height: 36px;
+}
+
+[data-color='1'] {
+  --ball: var(--c1);
+}
+[data-color='2'] {
+  --ball: var(--c2);
+}
+[data-color='3'] {
+  --ball: var(--c3);
+}
+[data-color='4'] {
+  --ball: var(--c4);
+}
+[data-color='5'] {
+  --ball: var(--c5);
+}
+[data-color='6'] {
+  --ball: var(--c6);
+}
+[data-color='7'] {
+  --ball: var(--c7);
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 170px;
+}
+
+.preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.preview-balls {
+  display: flex;
+  gap: 8px;
+}
+
+.button {
+  font: inherit;
+  padding: 10px 12px;
+  cursor: pointer;
 }
