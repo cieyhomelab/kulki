@@ -1,3 +1,7 @@
+import { spawnSync } from 'node:child_process';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   computePublicationResult,
@@ -122,5 +126,67 @@ describe('findInconsistencies', () => {
         fromApi: 'nieudana',
       }),
     ).toHaveLength(1);
+  });
+});
+
+describe('node tools/publication-result.js', () => {
+  const SHA = 'a'.repeat(40);
+  const stub = path.resolve('tests/unit/tools/helpers/stub-github-api.js');
+  const successJobs = ['gate', 'deploy', 'verify'].map((name) => ({ name, conclusion: 'success' }));
+
+  /** @param {Record<string, string>} extra */
+  function run(extra) {
+    const dir = mkdtempSync(path.join(tmpdir(), 'pubresult-'));
+    const summary = path.join(dir, 'summary.md');
+    try {
+      const result = spawnSync(
+        process.execPath,
+        ['--import', stub, 'tools/publication-result.js'],
+        {
+          encoding: 'utf8',
+          env: {
+            PATH: process.env.PATH,
+            GITHUB_SHA: SHA,
+            GITHUB_REPOSITORY: 'o/r',
+            GITHUB_RUN_ID: '1',
+            GITHUB_TOKEN: 'x',
+            GITHUB_STEP_SUMMARY: summary,
+            GATE_RESULT: 'success',
+            DEPLOY_RESULT: 'success',
+            VERIFY_RESULT: 'success',
+            STUB_HEAD_SHA: SHA,
+            STUB_JOBS: JSON.stringify(successJobs),
+            ...extra,
+          },
+        },
+      );
+      return {
+        status: result.status,
+        summary: existsSync(summary) ? readFileSync(summary, 'utf8') : '',
+      };
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
+  it('writes the result line with the version to the step summary, exit 0', () => {
+    const { status, summary } = run({});
+    expect(status).toBe(0);
+    expect(summary).toContain('Wynik publikacji: udana');
+    expect(summary).toContain(SHA);
+  });
+
+  it('exits non-zero when head_sha of the run differs from GITHUB_SHA', () => {
+    expect(run({ STUB_HEAD_SHA: 'b'.repeat(40) }).status).not.toBe(0);
+  });
+
+  it('exits non-zero when the result from the API differs from the one from needs', () => {
+    const jobs = [
+      { name: 'gate', conclusion: 'success' },
+      { name: 'deploy', conclusion: 'failure' },
+    ];
+    const { status, summary } = run({ STUB_JOBS: JSON.stringify(jobs) });
+    expect(status).not.toBe(0);
+    expect(summary).toContain('Wynik publikacji: udana');
   });
 });
