@@ -5,12 +5,15 @@ services:
     build:
       context: .
       target: web
+      args:
+        KULKI_VERSION: ${KULKI_VERSION:-}
 
   e2e:
     build:
       context: .
       target: e2e
       args:
+        KULKI_VERSION: ${KULKI_VERSION:-}
         PLAYWRIGHT_VERSION: ${PLAYWRIGHT_VERSION:?set by scripts/test-e2e.sh}
     depends_on:
       web:
@@ -21,3 +24,7 @@ services:
       E2E_FILE_URL: file:///work/dist/index.html
       # Empty means mock mode: the post-deploy suite checks `web` instead of the hosting.
       POSTDEPLOY_URL: ${POSTDEPLOY_URL:-}
+      # Expected version marker and SHA-256 of the game file; empty SHA-256 means the
+      # checksum of dist/index.html inside this container.
+      POSTDEPLOY_VERSION: ${POSTDEPLOY_VERSION:-dev}
+      POSTDEPLOY_SHA256: ${POSTDEPLOY_SHA256:-}

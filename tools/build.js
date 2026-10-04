@@ -3,10 +3,13 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 import { inlineAssets } from './inline.js';
+import { resolveVersion } from './version.js';
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const srcDir = path.join(rootDir, 'src');
 const outFile = path.join(rootDir, 'dist', 'index.html');
+
+const version = resolveVersion(process.env.KULKI_VERSION);
 
 const bundle = await build({
   entryPoints: [path.join(srcDir, 'main.js')],
@@ -17,6 +20,8 @@ const bundle = await build({
   minify: false,
   write: false,
   logLevel: 'warning',
+  // Pinned so the output does not depend on tsconfig.json being present (the Docker build has none).
+  tsconfigRaw: { compilerOptions: { alwaysStrict: true } },
 });
 
 const [template, css] = await Promise.all([
@@ -24,7 +29,7 @@ const [template, css] = await Promise.all([
   readFile(path.join(srcDir, 'styles.css'), 'utf8'),
 ]);
 
-const html = inlineAssets(template, { css, js: bundle.outputFiles[0].text });
+const html = inlineAssets(template, { css, js: bundle.outputFiles[0].text, version });
 
 await mkdir(path.dirname(outFile), { recursive: true });
 await writeFile(outFile, html);
