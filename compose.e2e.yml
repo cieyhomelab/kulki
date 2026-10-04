@@ -28,3 +28,5 @@ services:
       # checksum of dist/index.html inside this container.
       POSTDEPLOY_VERSION: ${POSTDEPLOY_VERSION:-dev}
       POSTDEPLOY_SHA256: ${POSTDEPLOY_SHA256:-}
+      # Epoch seconds until which the post-deploy checks retry; empty means 30 s per waiting step.
+      POSTDEPLOY_DEADLINE: ${POSTDEPLOY_DEADLINE:-}
