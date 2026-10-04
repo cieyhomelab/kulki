@@ -20,8 +20,6 @@ jobs:
     name: Lint, tests, build
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    env:
-      KULKI_VERSION: ${{ inputs.version }}
     outputs:
       sha256: ${{ steps.build.outputs.sha256 }}
     steps:
@@ -35,6 +33,8 @@ jobs:
       - run: scripts/test-integration.sh
       - id: build
         run: scripts/build.sh
+        env:
+          KULKI_VERSION: ${{ inputs.version }}
       - uses: actions/upload-artifact@v5
         with:
           name: index-html

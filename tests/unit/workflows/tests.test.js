@@ -59,7 +59,9 @@ describe('Tests workflow (tests.yml)', () => {
       step.uses?.startsWith('actions/upload-artifact@'),
     );
 
-    expect(jobs.checks.env.KULKI_VERSION).toBe('${{ inputs.version }}');
+    expect(build.env.KULKI_VERSION).toBe('${{ inputs.version }}');
+    // Only the build step gets the version: integration tests expect the default "dev".
+    expect(jobs.checks.env?.KULKI_VERSION).toBeUndefined();
     expect(jobs.checks.outputs.sha256).toBe(`\${{ steps.${build.id}.outputs.sha256 }}`);
     expect(upload.with).toMatchObject({ name: 'index-html', path: 'dist/index.html' });
   });
