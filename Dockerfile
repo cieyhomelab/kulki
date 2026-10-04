@@ -4,6 +4,9 @@ ARG NODE_VERSION=24
 ARG PLAYWRIGHT_VERSION=1.63.0
 
 FROM node:${NODE_VERSION}-alpine AS build
+# Version marker baked into the game; empty means `dev`.
+ARG KULKI_VERSION=
+ENV KULKI_VERSION=${KULKI_VERSION}
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
