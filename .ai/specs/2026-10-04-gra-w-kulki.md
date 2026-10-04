@@ -239,4 +239,232 @@ Właściciel na żadne pytanie nie odpowiedział „wybierz ty”. Poniższe szc
 
 ## Sekcje techniczne
 
-> Uzupełnia architekt po zatwierdzeniu specyfikacji: architektura, model danych, kontrakty API, plan implementacji.
+Stos i jego uzasadnienie: [ADR 0001](../../docs/adr/0001-stos-technologiczny.md). Zasady pracy w repozytorium: [AGENTS.md](../../AGENTS.md).
+
+### Architektura
+
+Gra jest aplikacją w całości po stronie przeglądarki. Nie ma serwera, bazy danych ani żadnych żądań sieciowych. Źródła w `src/` (moduły ES, czysty JavaScript, CSS, szablon HTML) są sklejane przez `scripts/build.sh` w jeden plik `dist/index.html`, który jest produktem.
+
+**Komponenty**
+
+| Komponent | Katalog | Odpowiedzialność | Czego nie robi |
+|---|---|---|---|
+| Logika gry | `src/game/` | plansza, droga, wykrywanie linii, punktacja, przebieg tury, losowanie | nie dotyka DOM, `localStorage`, dźwięku ani czasu |
+| Zapis | `src/storage/` | odczyt, walidacja i zapis trzech danych w `localStorage` | nie zna reguł gry |
+| Dźwięk | `src/audio/` | synteza czterech dźwięków przez Web Audio, wyciszenie, rejestr odtworzonych dźwięków | nie używa plików dźwiękowych |
+| Interfejs | `src/ui/` | rysowanie planszy i panelu w DOM, obsługa kliknięć, animacje, okna potwierdzenia i końca gry, polskie teksty | nie liczy reguł gry |
+| Interfejs testowy | `src/test-api.js` | `window.__kulki`: zadany stan, przewidywalne losowanie, odczyt stanu | nie jest używany przez samą grę |
+| Start | `src/main.js` | składa powyższe i uruchamia aplikację | |
+
+Proponowany podział `src/game/` (jeden plik, jedna odpowiedzialność, żeby zadania dało się robić równolegle): `constants.js` (rozmiar planszy 9, liczba kolorów 7, minimalna linia 5, kulki startowe 5, dolosowanie 3), `board.js` (reprezentacja i operacje na planszy), `rng.js`, `path.js`, `lines.js`, `score.js`, `game.js` (przebieg tury).
+
+**Stan gry.** Jeden niemutowalny obiekt: plansza (81 pól, indeks `wiersz × 9 + kolumna`, wartość `0` dla pustego pola albo `1`–`7` dla koloru), wynik, podgląd (3 kolory), flaga końca gry, flaga pobicia rekordu w tej rozgrywce. Zaznaczenie kulki, trwająca animacja i sygnał odmowy należą do stanu interfejsu, nie do stanu gry, więc nie są zapisywane (S8: po odświeżeniu nic nie jest zaznaczone).
+
+**Przepływ tury**
+
+1. Kliknięcie trafia do `src/ui/`. Jeśli trwa animacja albo gra jest zakończona, jest ignorowane. Kliknięcie kulki zmienia tylko zaznaczenie.
+2. Kliknięcie pustego pola przy zaznaczonej kulce wywołuje `src/game/`: szukanie najkrótszej drogi (BFS po sąsiadach bokiem). Brak drogi: interfejs pokazuje sygnał odmowy, stan gry się nie zmienia.
+3. Jest droga: logika oblicza **całą turę synchronicznie** i zwraca nowy stan oraz uporządkowaną listę zdarzeń: `moved` (droga), `cleared` (pola, punkty), `spawned` (pola, kolory), `gameOver`. Kolejność obliczeń: przesunięcie → sprawdzenie linii → jeśli było zbicie i plansza nie jest pusta, koniec tury → w przeciwnym razie dolosowanie z podglądu, nowy podgląd, jedno sprawdzenie linii → jeśli po tym zbiciu plansza jest pusta, kolejne dolosowanie → jeśli nie ma pustych pól, koniec gry.
+4. Nowy stan jest od razu zapisywany (`src/storage/`) i od razu aktualizowany jest najlepszy wynik. Dzięki temu odświeżenie w trakcie animacji przywraca stan zakończonej tury (S8).
+5. Interfejs odtwarza zdarzenia po kolei jako animacje i przy każdym zdarzeniu prosi `src/audio/` o dźwięk. Na czas odtwarzania plansza ma `data-animating="true"` i ignoruje kliknięcia. Wynik na ekranie zmienia się przy zdarzeniu `cleared`.
+
+**Losowość.** Cała gra korzysta z jednej funkcji `rng()` zwracającej liczbę z przedziału [0, 1), tworzonej w `src/game/rng.js` i przekazywanej do logiki jako parametr. Domyślnie opiera się na `Math.random`. Interfejs testowy może ją zastąpić kolejką zadanych wartości, po której wyczerpaniu działa generator z ziarnem (mulberry32). Kolejność zużycia wartości jest częścią kontraktu (patrz „Kontrakty API”).
+
+**Czasy.** Przesunięcie kulki: krok co najwyżej 60 ms, cała animacja nie dłużej niż 800 ms niezależnie od długości drogi. Zbicie: 300 ms. Pojawienie się kulek: 300 ms. Sygnał odmowy: 500 ms. Każda wartość mieści się w limicie 1 s ze specyfikacji; wszystkie są stałymi w jednym module `src/ui/`.
+
+**Dźwięk.** Cztery krótkie dźwięki generowane oscylatorami Web Audio, różniące się wysokością i obwiednią, bez plików. `AudioContext` powstaje leniwie przy pierwszym kliknięciu gracza; jeśli nie istnieje albo jest zawieszony, moduł nic nie odtwarza i nie zgłasza błędu. Rejestr odtworzonych dźwięków dostaje wpis w chwili zlecenia dźwięku przy włączonym dźwięku, niezależnie od tego, czy przeglądarka faktycznie go wyemitowała; przy wyciszeniu wpis nie powstaje.
+
+**Rysowanie.** Plansza to siatka CSS z 81 elementami DOM, kulki to elementy stylowane CSS (gradienty), animacje to przejścia i animacje CSS sterowane klasami. Nie ma `<canvas>` ani obrazów. Okna potwierdzenia i końca gry to elementy HTML w obrębie strony, nie `confirm()`.
+
+**Granice i uruchamianie.** Plik musi działać z `file://`, więc nie ma modułów ładowanych w czasie działania, Service Workera ani założenia, że `localStorage` jest dostępny. Docker Compose (`compose.yml`) serwuje `dist/index.html` przez nginx i służy jako „hosting statyczny” do uruchamiania oraz do testów E2E.
+
+### Model danych
+
+Nie ma bazy danych. Dane żyją w `localStorage` przeglądarki pod trzema niezależnymi kluczami. Specyfikacja nie oznacza żadnych danych jako osobowe i żadne dane nie opuszczają urządzenia, więc nie ma szczególnej obsługi danych osobowych.
+
+| Klucz | Wartość | Poprawna, gdy | Wartość domyślna |
+|---|---|---|---|
+| `kulki.game.v1` | JSON, obiekt `Rozgrywka` | spełnia wszystkie reguły poniżej | nowa gra (S1) |
+| `kulki.best.v1` | liczba całkowita zapisana dziesiętnie, np. `"124"` | pasuje do `^\d+$` i mieści się w bezpiecznym zakresie liczb całkowitych | `0` |
+| `kulki.sound.v1` | `"on"` albo `"off"` | jest jedną z tych dwóch wartości | `"on"` |
+
+**`Rozgrywka`**
+
+```json
+{
+  "board": [".........", "..3......", ".........", ".....7...", ".........", ".1.......", ".........", "....2....", "......5.."],
+  "score": 0,
+  "preview": [4, 1, 6],
+  "over": false,
+  "record": false
+}
+```
+
+| Pole | Typ | Reguły walidacji |
+|---|---|---|
+| `board` | tablica 9 napisów | dokładnie 9 napisów po dokładnie 9 znaków; znak `.` to puste pole, cyfra `1`–`7` to kolor; wiersze od góry, znaki od lewej |
+| `score` | liczba | całkowita, ≥ 0 |
+| `preview` | tablica 3 liczb | dokładnie 3 liczby całkowite z zakresu 1–7 |
+| `over` | boolean | jeśli `false`, plansza ma co najmniej jedno puste pole |
+| `record` | boolean | czy w tej rozgrywce pobito najlepszy wynik |
+
+Ten sam format planszy (9 napisów) jest używany w interfejsie testowym, więc istnieje jedna zewnętrzna reprezentacja planszy. Wewnętrznie logika używa tablicy 81 liczb.
+
+**Zasady odczytu i zapisu**
+
+- Każdy klucz jest czytany i walidowany osobno. Brak klucza, błąd parsowania, niepoprawny kształt albo wyjątek z `localStorage` dają wartość domyślną tylko dla tego klucza (S8: uszkodzona rozgrywka nie kasuje najlepszego wyniku).
+- Każdy zapis jest w `try/catch`. Błąd zapisu jest ignorowany, gra działa dalej w pamięci.
+- Rozgrywka jest zapisywana po każdej obliczonej turze, po rozpoczęciu nowej gry i po `setState` z interfejsu testowego. Najlepszy wynik jest zapisywany, gdy rośnie. Ustawienie dźwięku jest zapisywane przy każdej zmianie.
+- Zakończona gra pozostaje zapisana z `over: true`, żeby po odświeżeniu wrócił komunikat końca gry z tym samym wynikiem i informacją o rekordzie.
+- Najlepszy wynik pokazywany na ekranie to większa z wartości: zapisany najlepszy wynik i wynik bieżącej rozgrywki.
+
+**Migracje.** Wersja formatu jest w nazwie klucza. Zmiana kształtu którejkolwiek danej to nowy klucz (`…v2`) i jawna decyzja o starym: najlepszy wynik musi być przeniesiony, rozgrywkę i ustawienie dźwięku wolno porzucić. Zasady w [BACKWARD_COMPATIBILITY.md](../../BACKWARD_COMPATIBILITY.md).
+
+**Etapy a zapis.** W etapie 1 nic nie jest zapisywane (najlepszy wynik żyje w pamięci do odświeżenia). Etap 2 wprowadza `kulki.game.v1` i `kulki.best.v1`. Etap 3 wprowadza `kulki.sound.v1`.
+
+### Kontrakty API
+
+Gra nie ma API sieciowego. Kontraktami są: interfejs testowy w JavaScripcie, kontrakt DOM oraz format zapisu opisany wyżej. Wszystkie trzy są chronione ([BACKWARD_COMPATIBILITY.md](../../BACKWARD_COMPATIBILITY.md)).
+
+#### Interfejs testowy `window.__kulki`
+
+Obiekt jest zawsze obecny w pliku produkcyjnym, bo testy E2E działają na tym samym `index.html`, który dostaje gracz. Jest dostępny, gdy element `[data-testid="app"]` ma `data-ready="true"`.
+
+**`setState(stan)`** zastępuje bieżącą rozgrywkę, przerywa trwające animacje, usuwa zaznaczenie, rysuje ekran od nowa i zapisuje stan tak jak po turze.
+
+| Pole | Wymagane | Domyślnie | Walidacja |
+|---|---|---|---|
+| `board` | tak | | jak `board` w `Rozgrywka` |
+| `score` | nie | `0` | całkowita, ≥ 0 |
+| `preview` | nie | 3 kolory z `rng` | 3 liczby 1–7 |
+| `best` | nie | bez zmiany | całkowita, ≥ 0; ustawia najlepszy wynik (także zapisany) |
+| `over` | nie | `false` | boolean; `true` pokazuje komunikat końca gry |
+| `record` | nie | `false` | boolean |
+
+Niepoprawny argument powoduje `TypeError` z opisem pola i nie zmienia stanu. `setState` nie sprawdza, czy na planszy leżą gotowe linie; test odpowiada za sensowny układ.
+
+**`setRandom({ queue, seed })`** zastępuje źródło losowości. `queue` (opcjonalna tablica liczb z przedziału [0, 1)) jest zużywana po kolei; po jej wyczerpaniu wartości daje generator z ziarnem `seed` (opcjonalna liczba całkowita, domyślnie `1`). Ustawienie nie przetrwa odświeżenia strony; po odświeżeniu gra wraca do prawdziwej losowości, dopóki test nie wywoła `setRandom` ponownie.
+
+**Kolejność zużycia wartości losowych** (część kontraktu):
+
+- Wybór koloru: `1 + floor(rng() × 7)`.
+- Wybór pola: puste pola uporządkowane rosnąco według indeksu `wiersz × 9 + kolumna`; wybierane jest pole o numerze `floor(rng() × liczba pustych pól)` na tej liście.
+- Nowa gra: dla każdej z 5 kulek po kolei najpierw pole, potem kolor (10 wartości), następnie 3 kolory podglądu (3 wartości). Jeśli 5 kulek tworzy linię, całe losowanie kulek startowych jest powtarzane przed losowaniem podglądu.
+- Dolosowanie: dla każdej kulki z podglądu po kolei jedno pole, wybierane z pól pustych po położeniu poprzednich kulek (do 3 wartości; mniej, gdy brakuje miejsca), następnie 3 kolory nowego podglądu (3 wartości). Nowy podgląd nie jest losowany, gdy dolosowanie kończy grę.
+- Ruch gracza, odmowa ruchu i zbicie nie zużywają wartości losowych.
+
+Przykład: przy `queue: [0, 0, 0, 0, 0, 0]` dolosowanie kładzie kulki na trzech pierwszych pustych polach, a nowy podgląd to `[1, 1, 1]`.
+
+**`getState()`** zwraca migawkę:
+
+```json
+{
+  "board": [".........", "..3......", "(razem 9 napisów, jak w Rozgrywka)"],
+  "score": 14,
+  "best": 20,
+  "preview": [4, 1, 6],
+  "selected": { "row": 2, "col": 5 },
+  "over": false,
+  "record": false,
+  "animating": false,
+  "rejected": false,
+  "soundOn": true
+}
+```
+
+`board` ma format jak w `Rozgrywka` i pokazuje stan po obliczonej turze, także w trakcie animacji. `selected` to `null`, gdy nic nie jest zaznaczone. `rejected` jest `true`, dopóki widoczny jest sygnał odmowy.
+
+**`getSoundLog()`** zwraca kopię rejestru odtworzonych dźwięków od załadowania strony: tablicę obiektów `{ "event": "move" | "clear" | "reject" | "gameover" }` w kolejności odtwarzania.
+
+#### Kontrakt DOM
+
+Testy wybierają elementy wyłącznie po `data-testid` i rolach; klasy CSS nie są kontraktem. Wiersze i kolumny liczone od 0, od lewego górnego rogu.
+
+| Element | `data-testid` | Atrybuty stanu i treść |
+|---|---|---|
+| Korzeń aplikacji | `app` | `data-ready="true"` po starcie |
+| Plansza | `board` | `data-animating="true"\|"false"`; `data-rejected="true"\|"false"` |
+| Pole | `cell-{wiersz}-{kolumna}` | `data-color="0"`–`"7"` (0 to puste); `data-selected="true"\|"false"` |
+| Wynik | `score` | treść: liczba; obok podpis „Wynik” |
+| Najlepszy wynik | `best-score` | treść: liczba; obok podpis „Najlepszy wynik” |
+| Podgląd | `preview` | podpis „Następne kulki”; dokładnie 3 elementy `preview-ball` z `data-color="1"`–`"7"`, w kolejności dolosowania |
+| Przycisk nowej gry | `new-game` | tekst „Nowa gra” |
+| Przycisk dźwięku | `sound-toggle` | `aria-pressed="true"` i tekst „Dźwięk: włączony” albo `aria-pressed="false"` i tekst „Dźwięk: wyciszony” |
+| Pytanie o potwierdzenie | `confirm-dialog` | obecne w DOM tylko, gdy widoczne; przyciski `confirm-yes` i `confirm-no` |
+| Komunikat końca gry | `game-over` | obecny tylko po końcu gry; `game-over-score` z wynikiem; `game-over-record` obecny tylko przy nowym rekordzie; przycisk `game-over-new-game` |
+
+`data-color` pola odzwierciedla stan logiczny po obliczonej turze; to, co gracz widzi w trakcie animacji, może się chwilowo różnić. Testy porównujące planszę czekają na `data-animating="false"`.
+
+**Walidacja wejścia gracza.** Jedynym wejściem są kliknięcia. Kliknięcie jest ignorowane, gdy trwa animacja, gra jest zakończona albo widoczne jest pytanie o potwierdzenie (wtedy działają tylko jego przyciski). Pozostałe przypadki rozstrzygają scenariusze S2 i S3.
+
+### Integracje
+
+Brak. Gra nie łączy się z żadnym serwerem ani usługą, więc nie ma dostawców, trybu atrapy ani sekretów. Jedyne zależności od środowiska to API przeglądarki: `localStorage` i Web Audio. Oba mogą być niedostępne i w obu przypadkach gra działa dalej (patrz „Model danych” i „Architektura”). W testach jednostkowych zastępuje się je prostymi obiektami zastępczymi przekazywanymi do modułów `src/storage/` i `src/audio/`.
+
+### Plan implementacji
+
+Każdy krok kończy się przechodzącą bramką walidacji i zostawia działającą aplikację. Testy E2E trafiają do `tests/e2e/s<numer>-<nazwa>.spec.js`. Kryteria oceniane ręcznie (wygląd animacji, brzmienie dźwięków, rozróżnialność kolorów) nie mają testów automatycznych i zostają do akceptacji właściciela.
+
+**Zależności między etapami**
+
+| Etap | Zależy od | Uwagi |
+|---|---|---|
+| 1. Grywalna rozgrywka | nic (tylko szkielet z tego PR) | |
+| 2. Pamięć między uruchomieniami | etap 1 | |
+| 3. Dźwięki | etap 1 | niezależny od etapu 2; można robić równolegle z nim |
+
+Etapy 2 i 3 mają jeden wspólny element: mały moduł bezpiecznego dostępu do `localStorage`. Jest wydzielony jako krok W poniżej, żeby żaden z tych etapów nie zależał od drugiego.
+
+#### Etap 1: grywalna rozgrywka (S1–S6)
+
+Kroki 1.1–1.5 to czysta logika z testami jednostkowymi, bez zmian na ekranie. Po 1.1 kroki 1.2, 1.3 i 1.4 są od siebie niezależne. Krok 1.6 nie zależy od 1.2–1.5.
+
+| Krok | Zakres | Testy | Zależy od |
+|---|---|---|---|
+| 1.1 | `constants.js`, `board.js`: reprezentacja planszy, konwersja z i do formatu 9 napisów z walidacją, lista pustych pól | jednostkowe | |
+| 1.2 | `rng.js`: generator domyślny, generator z ziarnem, kolejka zadanych wartości; wybór koloru i pustego pola według kontraktu | jednostkowe | 1.1 |
+| 1.3 | `path.js`: najkrótsza droga BFS po sąsiadach bokiem; brak drogi, także gdy jedyne połączenie jest po skosie | jednostkowe | 1.1 |
+| 1.4 | `lines.js`, `score.js`: linie w czterech kierunkach, kilka linii naraz, wspólna kulka liczona raz, punktacja z tabeli | jednostkowe | 1.1 |
+| 1.5 | `game.js`: nowa gra (5 kulek bez gotowej linii, podgląd), przebieg tury z listą zdarzeń, dolosowanie przy mniej niż 3 pustych polach, pusta plansza po zbiciu, koniec gry | jednostkowe dla każdej gałęzi tury | 1.2, 1.3, 1.4 |
+| 1.6 | Ekran statyczny: plansza 9×9, wynik, najlepszy wynik, podgląd, przyciski „Nowa gra” i dźwięku, teksty w `texts.js`, układ bez przewijania przy 1024×768, wygląd 7 kolorów | integracyjny (struktura i kontrakt DOM), E2E: napisy po polsku i brak przewijania | |
+| 1.7 | Połączenie logiki z ekranem: start nowej gry przy otwarciu, rysowanie stanu, `window.__kulki` (`setState`, `setRandom`, `getState`; `getSoundLog` zwraca pustą tablicę) | E2E S1: 5 kulek, wynik 0, podgląd 3 kulek; E2E interfejsu testowego | 1.5, 1.6 |
+| 1.8 | Zaznaczanie kulek i ruch bez zbicia z animacją po drodze; blokada kliknięć na czas animacji (S2) | E2E S2 | 1.7 |
+| 1.9 | Odmowa ruchu z sygnałem wizualnym, kulka zostaje zaznaczona (S3) | E2E S3 | 1.8 |
+| 1.10 | Zbicie linii po ruchu: animacja, wynik, najlepszy wynik aktualizowany w pamięci, brak dolosowania po zbiciu (S4, część S7 w ramach jednego uruchomienia) | E2E S4 | 1.8 |
+| 1.11 | Dolosowanie po ruchu bez zbicia, nowy podgląd, zbicie po dolosowaniu, pusta plansza po zbiciu (S5, reszta S4) | E2E S5 | 1.10 |
+| 1.12 | Koniec gry: komunikat z wynikiem, blokada planszy, nowa gra z komunikatu (S6) | E2E S6 | 1.11 |
+| 1.13 | „Nowa gra” z pytaniem o potwierdzenie w trwającej rozgrywce i bez pytania po końcu gry (reszta S1) | E2E S1 | 1.12 |
+
+W etapie 1 przycisk dźwięku jest widoczny i przełącza swój opis i `aria-pressed` w pamięci (wymaga tego ostatnie kryterium S1), ale gra nie odtwarza dźwięków i nie zapamiętuje ustawienia.
+
+#### Krok wspólny W (przed 2.1 i przed 3.3)
+
+| Krok | Zakres | Testy | Zależy od |
+|---|---|---|---|
+| W | `src/storage/safe-storage.js`: odczyt i zapis pojedynczego klucza, które nigdy nie rzucają wyjątku (niedostępny `localStorage`, przekroczony limit, tryb prywatny) | jednostkowe z zastępczym magazynem, w tym rzucającym wyjątki | |
+
+#### Etap 2: pamięć między uruchomieniami (S7, S8). Zależy od etapu 1 i kroku W
+
+| Krok | Zakres | Testy | Zależy od |
+|---|---|---|---|
+| 2.1 | `src/storage/best-score.js`: odczyt z walidacją i zapis; gra czyta najlepszy wynik przy starcie i zapisuje go, gdy rośnie (S7) | jednostkowe walidacji; E2E S7: rekord po odświeżeniu | W |
+| 2.2 | Flaga `record` w stanie gry i informacja o nowym rekordzie w komunikacie końca gry (S7) | jednostkowe; E2E S7: komunikat z informacją i bez niej | 2.1 |
+| 2.3 | `src/storage/game-save.js`: walidacja i zapis `Rozgrywka`; zapis po każdej turze, po nowej grze i po `setState` | jednostkowe: każdy rodzaj uszkodzonego zapisu daje „brak zapisu” | W |
+| 2.4 | Wznowienie przy starcie: trwająca gra, gra przed pierwszym ruchem, gra zakończona z komunikatem; brak zaznaczenia po wznowieniu; odświeżenie w trakcie animacji (S8) | E2E S8 | 2.2, 2.3 |
+| 2.5 | Uszkodzony zapis rozgrywki przy poprawnym najlepszym wyniku; nowa gra po wznowieniu zastępuje zapis; niedostępny `localStorage` (S8, przypadki brzegowe) | E2E S8; integracyjny z wyłączonym `localStorage` | 2.4 |
+
+Kroki 2.1 i 2.3 są od siebie niezależne.
+
+#### Etap 3: dźwięki (S9). Zależy od etapu 1 i kroku W
+
+| Krok | Zakres | Testy | Zależy od |
+|---|---|---|---|
+| 3.1 | `src/audio/sounds.js`: cztery dźwięki syntezowane, leniwy `AudioContext`, odporność na jego brak i zawieszenie, rejestr odtworzonych dźwięków, stan wyciszenia w pamięci | jednostkowe z zastępczym `AudioContext` | |
+| 3.2 | Podpięcie dźwięków do zdarzeń tury: przesunięcie, zbicie (także po dolosowaniu), odmowa, koniec gry, we właściwej kolejności; `getSoundLog` zwraca rejestr | E2E S9: rejestr dla każdego zdarzenia i dla ruchu ze zbiciem | 3.1 |
+| 3.3 | Przycisk wyciszenia steruje dźwiękiem; `src/storage/sound-setting.js` zapamiętuje ustawienie; stan po odświeżeniu (S9) | jednostkowe walidacji; E2E S9: wyciszenie, ponowne włączenie, odświeżenie | 3.2, W |
+
+Krok 3.1 nie zależy od etapu 1 i można go zacząć od razu.
+
+#### Miejsca wspólne przy pracy równoległej
+
+Pliki, które zmienia wiele kroków i w których trzeba spodziewać się konfliktów: `src/main.js` (składanie modułów), `src/ui/texts.js`, `src/styles.css`, `src/test-api.js`. Zmiany w nich powinny być małe i dopisywane, a kroki dotykające tego samego pliku lepiej wykonywać po kolei niż równolegle.

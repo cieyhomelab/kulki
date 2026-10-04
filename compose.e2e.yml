@@ -1,0 +1,21 @@
+# Throwaway stack for scripts/test-e2e.sh. Standalone on purpose: it must not
+# publish host ports, so it cannot extend compose.yml (port lists are merged).
+services:
+  web:
+    build:
+      context: .
+      target: web
+
+  e2e:
+    build:
+      context: .
+      target: e2e
+      args:
+        PLAYWRIGHT_VERSION: ${PLAYWRIGHT_VERSION:?set by scripts/test-e2e.sh}
+    depends_on:
+      web:
+        condition: service_healthy
+    environment:
+      CI: 'true'
+      E2E_BASE_URL: http://web
+      E2E_FILE_URL: file:///work/dist/index.html
