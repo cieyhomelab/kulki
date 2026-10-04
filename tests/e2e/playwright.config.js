@@ -30,10 +30,19 @@ export default defineConfig({
       use: { ...devices['Desktop Safari'], viewport: { width: 1024, height: 768 } },
     },
     {
+      // Readiness gate: waits until the address serves the expected version.
+      name: 'postdeploy-ready',
+      testDir: '../postdeploy',
+      testMatch: 'ready.setup.js',
+      use: { ...devices['Desktop Chrome'], baseURL: targetUrl },
+    },
+    {
       // Checks run after each publication; here they run against `web` (mock mode)
       // unless POSTDEPLOY_URL points at the published game.
       name: 'postdeploy',
       testDir: '../postdeploy',
+      testIgnore: 'ready.setup.js',
+      dependencies: ['postdeploy-ready'],
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 1024, height: 768 },
