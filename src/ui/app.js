@@ -1,6 +1,7 @@
 import { createSounds } from '../audio/sounds.js';
 import { boardToRows } from '../game/board.js';
 import { gameFromSnapshot, newGame, playTurn } from '../game/game.js';
+import { readBestScore, writeBestScore } from '../storage/best-score.js';
 import { loadSoundOn, saveSoundOn } from '../storage/sound-setting.js';
 import { TEXTS } from './texts.js';
 import { CLEAR_MS, REJECT_MS, SPAWN_MS, moveStepMs } from './timing.js';
@@ -165,8 +166,14 @@ export function startApp(doc, rng) {
 
   /** @type {import('../game/game.js').GameState} */
   let game = newGame(rng);
-  // The best score lives in memory only until stage 2 adds persistence.
-  let best = 0;
+  let best = readBestScore();
+
+  /** Raises the best score to at least `value` and remembers it. */
+  function raiseBest(/** @type {number} */ value) {
+    if (value <= best) return;
+    best = value;
+    writeBestScore(best);
+  }
 
   // Selection, animation and the rejection signal are interface state, not game state.
   /** @type {number | null} */
@@ -221,7 +228,7 @@ export function startApp(doc, rng) {
   function startNewGame() {
     closeDialog('confirm-dialog');
     resetInterface();
-    best = Math.max(best, game.score);
+    raiseBest(game.score);
     game = newGame(rng);
     render();
   }
@@ -249,8 +256,11 @@ export function startApp(doc, rng) {
       el(doc, 'strong', {}, TEXTS.gameOverTitle),
       el(doc, 'span', {}, TEXTS.gameOverScore),
       el(doc, 'span', { 'data-testid': 'game-over-score' }, String(game.score)),
-      newGameButton,
     );
+    if (game.record) {
+      panel.append(el(doc, 'span', { 'data-testid': 'game-over-record' }, TEXTS.gameOverRecord));
+    }
+    panel.append(newGameButton);
     main.after(panel);
   }
 
@@ -392,19 +402,19 @@ export function startApp(doc, rng) {
     }
     if (selected === null) return;
     const before = game;
-    const turn = playTurn(game, selected, index, rng);
+    const bestBefore = Math.max(best, before.score);
+    const turn = playTurn(game, selected, index, rng, bestBefore);
     if (turn === null) {
       sounds.play('reject');
       reject();
       return;
     }
     const start = selected;
-    const bestBefore = Math.max(best, before.score);
     selected = null;
     clearRejection();
     // The turn is already computed; the screen catches up while the events play.
     game = turn.state;
-    best = Math.max(best, game.score);
+    raiseBest(game.score);
     // Hold the ball on its start cell until the first step.
     cells[start].dataset.selected = 'false';
     playEvents(turn.events, before.board, before.score, bestBefore);
@@ -422,7 +432,10 @@ export function startApp(doc, rng) {
       closeDialog('confirm-dialog');
       resetInterface();
       game = parsed.game;
-      if (parsed.best !== undefined) best = parsed.best;
+      if (parsed.best !== undefined) {
+        best = parsed.best;
+        writeBestScore(best);
+      }
       render();
     },
     getSoundLog: () => sounds.getLog(),

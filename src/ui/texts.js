@@ -13,5 +13,6 @@ export const TEXTS = Object.freeze({
   confirmNo: 'Nie',
   gameOverTitle: 'Koniec gry',
   gameOverScore: 'Twój wynik:',
+  gameOverRecord: 'Nowy rekord!',
   gameOverNewGame: 'Nowa gra',
 });
