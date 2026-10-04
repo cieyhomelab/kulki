@@ -195,4 +195,212 @@ Dalsze decyzje analityka, które nie padły w pytaniach:
 
 ## Sekcje techniczne
 
-> Uzupełnia architekt po zatwierdzeniu specyfikacji: architektura, model danych, kontrakty API, plan implementacji.
+Decyzja o sposobie publikacji i odrzucone alternatywy: [ADR 0002](../../docs/adr/0002-publikacja-na-github-pages.md). Stos produktu i narzędzi się nie zmienia ([ADR 0001](../../docs/adr/0001-stos-technologiczny.md)). Zasady pracy w repozytorium: [AGENTS.md](../../AGENTS.md).
+
+### Architektura
+
+Publikacja nie dodaje serwera ani kodu działającego u gracza. Składa się z czterech części: znacznika wersji wstawianego przy budowaniu, workflow GitHub Actions, małych narzędzi w `tools/` oraz testów sprawdzenia po publikacji.
+
+**Komponenty**
+
+| Komponent | Miejsce | Odpowiedzialność | Czego nie robi |
+|---|---|---|---|
+| Znacznik wersji | `tools/build.js`, `tools/inline.js`, `src/index.html` | wstawia `<meta name="kulki-version">` z wartością `KULKI_VERSION` albo `dev` | gra (`src/`) go nie czyta i nie pokazuje |
+| Testy wspólne | `.github/workflows/tests.yml` | bramka walidacji; artefakt `index-html` i jego suma SHA-256 | niczego nie publikuje |
+| CI dla PR | `.github/workflows/ci.yml` | woła `tests.yml` dla `pull_request` | nie ma uprawnień do Pages |
+| Publikacja | `.github/workflows/publish.yml` | testy → bramka wersji → umieszczenie → sprawdzenie → wynik | nie buduje pliku drugi raz |
+| Narzędzia publikacji | `tools/publish-gate.js`, `tools/pages-package.js`, `tools/publication-result.js` | decyzja „czy publikować”, paczka z jednym plikiem, wynik i kontrola historii | nie zawierają logiki w YAML-u |
+| Sprawdzenie po publikacji | `tests/postdeploy/` (projekt Playwright `postdeploy`) | kryteria `[po publikacji]` z P1, P2 i P4 | niczego nie zmienia pod adresem |
+| Testy konfiguracji | `tests/unit/workflows/` | kryteria `[konfiguracja]` z P2, P3 i P5 | nie uruchamiają workflow |
+| Hosting | GitHub Pages, źródło „GitHub Actions”, środowisko `github-pages` | serwuje `index.html` pod adresem gry | |
+
+**Przepływ publikacji** (`publish.yml`, zadania w tej kolejności)
+
+```
+push do main / ręczne uruchomienie
+  └─ tests (tests.yml)
+       ├─ checks: lint → unit → integration → build (KULKI_VERSION = commit) → artefakt index-html + sha256
+       └─ e2e:    scripts/test-e2e.sh na pliku z tą samą wersją; projekt postdeploy w trybie atrapy
+                  porównuje sumę pliku serwowanego przez `web` z sha256 artefaktu
+  └─ gate:   gałąź to main i commit jest jej czubkiem? → publish=true|false, deadline = teraz + 15 min
+  └─ deploy: (tylko gdy publish=true) artefakt → paczka z jednym index.html → GitHub Pages
+  └─ verify: scripts/test-e2e.sh --project postdeploy na żywym adresie, ponawianie do deadline
+  └─ result: (zawsze) wynik publikacji w podsumowaniu przebiegu + kontrola wpisu w historii
+```
+
+Każde zadanie zależy przez `needs` od poprzedniego, więc niepowodzenie dowolnego kroku testów zatrzymuje wszystko przed `deploy` (P3). `result` ma `if: always()` i jako jedyne działa po niepowodzeniu.
+
+**Jeden plik od testów do graczy.** Plik powstaje raz, w zadaniu `checks`. Zadanie `deploy` pobiera ten artefakt i go nie przebudowuje. Testy E2E działają na pliku zbudowanym w obrazie Dockera z tych samych źródeł i z tym samym `KULKI_VERSION`; budowanie musi być powtarzalne, a pilnuje tego test w projekcie `postdeploy`, który porównuje sumę SHA-256 odpowiedzi serwera z `POSTDEPLOY_SHA256`. Ten sam test działa dwa razy w jednej publikacji: przed umieszczeniem na stosie Compose (plik testowany = artefakt) i po umieszczeniu pod adresem gry (plik opublikowany = artefakt).
+
+Stan zastany do naprawienia w kroku 1.1: dziś oba pliki się różnią. `scripts/build.sh` daje plik z dyrektywą `"use strict";`, a obraz Dockera bez niej, bo esbuild czyta `tsconfig.json`, którego `Dockerfile` nie kopiuje. Budowanie ma przestać zależeć od obecności tego pliku (`tsconfigRaw` w `tools/build.js` z `alwaysStrict: true`), tak żeby obowiązującą postacią był plik z `"use strict";`, czyli ten, który dziś dostają testy integracyjne i artefakt CI.
+
+**Kolejność i brak równoległości.** `publish.yml` ma na poziomie workflow `concurrency: { group: publikacja, cancel-in-progress: false }`. Działa jedna publikacja naraz; z oczekujących GitHub zostawia tylko najnowszą, a starsze oczekujące anuluje (wynik `pominięta`). Trwająca publikacja nigdy nie jest przerywana. Zadanie `gate` dodatkowo odmawia, gdy commit przebiegu nie jest już czubkiem `main` (ponowne uruchomienie starego przebiegu) albo przebieg dotyczy innej gałęzi (P5). Drugą, niezależną barierą jest reguła środowiska `github-pages`, która dopuszcza wdrożenia tylko z gałęzi domyślnej; GitHub ustawia ją sam przy przełączeniu źródła Pages i nie należy jej luzować.
+
+**Sprawdzenie po publikacji** korzysta z istniejącego `scripts/test-e2e.sh` i tego samego obrazu Playwrighta. Projekt `postdeploy` ma dwa tryby wybierane zmienną `POSTDEPLOY_URL`: atrapa (usługa `web` w sieci Compose, część zwykłej bramki) i na żywo (adres gry). Kolejność w projekcie: najpierw test gotowości czeka z ponawianiem, aż znacznik wersji pod adresem będzie równy oczekiwanemu (najpóźniej do `POSTDEPLOY_DEADLINE`), potem biegną pozostałe testy. Zalecana realizacja: osobny projekt-zależność Playwrighta (`dependencies`) z jednym plikiem gotowości. Każde pobranie omija pamięć podręczną: unikalny parametr w adresie (np. `?nocache=<losowy>`) i nagłówek `Cache-Control: no-cache`.
+
+**Granice.** `src/` nie zmienia się poza szablonem `src/index.html` (miejsce na znacznik). Gra nie czyta znacznika, nie wykonuje żadnych żądań i nadal działa z `file://`. Workflow nie zapisuje niczego do repozytorium.
+
+### Model danych
+
+Nie ma bazy danych ani nowych danych gracza. Specyfikacja nie oznacza żadnych danych jako osobowe; publikacja niczego o graczach nie zbiera.
+
+**Znacznik wersji** (jedyna nowa dana w produkcie)
+
+| Cecha | Wartość |
+|---|---|
+| Postać | `<meta name="kulki-version" content="{wersja}" />` w `<head>`, dokładnie jeden |
+| `{wersja}` | wartość zmiennej `KULKI_VERSION` przy budowaniu; gdy zmienna jest pusta albo nieustawiona: `dev` |
+| Walidacja przy budowaniu | `dev` albo dokładnie 40 znaków `0-9a-f`; inna wartość kończy budowanie błędem |
+| Widoczność | nie występuje w tekście widocznym na ekranie ani w `<title>`; `src/` go nie czyta |
+
+**Wpis historii publikacji** to przebieg workflow `publish.yml`; nic nie jest zapisywane w repozytorium.
+
+| Pole wpisu | Skąd |
+|---|---|
+| wersja | `head_sha` przebiegu |
+| czas | `run_started_at` przebiegu |
+| wynik | reguła poniżej, liczona z wyników zadań `gate`, `deploy`, `verify` |
+
+**Reguła wyniku** (czysta funkcja w `tools/publication-result.js`, sprawdzana w tej kolejności):
+
+1. `pominięta`, gdy `gate` nie zakończyło się powodzeniem albo `deploy` ma wynik `skipped`, albo przebieg został anulowany, zanim powstały zadania;
+2. `udana`, gdy `deploy` i `verify` zakończyły się powodzeniem;
+3. `nieudana` w każdym innym przypadku (błąd albo przerwanie `deploy`, błąd, przerwanie albo przekroczenie czasu `verify`).
+
+Przerwanie `deploy` po przejściu bramki daje `nieudana`, bo nie wiadomo, czy plik został podmieniony; właściciel ponawia publikację.
+
+**Migracje.** Brak. Zapis gracza w `localStorage` nie zmienia kształtu ani kluczy. Jest przypisany do adresu `https://cieyhomelab.github.io`, więc gracz zaczyna pod adresem gry z pustym zapisem niezależnie od tego, co miał w grze otwieranej z dysku.
+
+### Kontrakty API
+
+Nie ma API sieciowego. Kontraktami są: znacznik wersji (wyżej), zmienne środowiskowe, kształt workflow, polecenia narzędzi i odpowiedzi HTTP spod adresu gry. Znacznik, nazwa pliku `publish.yml` i identyfikatory zadań są chronione ([BACKWARD_COMPATIBILITY.md](../../BACKWARD_COMPATIBILITY.md), punkt 6).
+
+#### Zmienne środowiskowe
+
+Żadna nie jest sekretem. Każda trafia do `.env.example` w kroku, który ją wprowadza.
+
+| Zmienna | Kto czyta | Znaczenie | Domyślnie |
+|---|---|---|---|
+| `KULKI_VERSION` | `tools/build.js`; `Dockerfile` (argument budowania etapu `build`); `compose.e2e.yml` | identyfikator wersji wstawiany do pliku | `dev` |
+| `POSTDEPLOY_URL` | `tests/postdeploy/helpers/target.js` (istnieje od szkieletu) | adres sprawdzanej gry; ustawiona oznacza tryb na żywo | pusta: usługa `web` |
+| `POSTDEPLOY_VERSION` | projekt `postdeploy` | oczekiwana wartość znacznika wersji | `dev` |
+| `POSTDEPLOY_SHA256` | projekt `postdeploy` | oczekiwana suma SHA-256 pliku gry (64 znaki szesnastkowe) | suma pliku `dist/index.html` w kontenerze testów |
+| `POSTDEPLOY_DEADLINE` | projekt `postdeploy` | czas (sekundy epoki Unix), do którego wolno ponawiać czekanie na wersję i na kody 404 | 30 s od startu testów |
+
+`compose.e2e.yml` przekazuje zmienne `POSTDEPLOY_*` do usługi `e2e` i `KULKI_VERSION` do budowania obu usług.
+
+#### Workflow
+
+**`tests.yml`** (`on: workflow_call`, wejście `version`: napis, wymagane; wyjście `sha256`)
+
+| Zadanie | Kroki | Uwagi |
+|---|---|---|
+| `checks` | `scripts/lint.sh`, `scripts/test-unit.sh`, `scripts/test-integration.sh`, `scripts/build.sh`, wysłanie artefaktu `index-html` | `KULKI_VERSION` = wejście `version` dla całego zadania; wyjście `sha256` |
+| `e2e` | `scripts/test-e2e.sh` | `needs: checks`; `KULKI_VERSION` i `POSTDEPLOY_VERSION` = `version`, `POSTDEPLOY_SHA256` = `needs.checks.outputs.sha256` |
+
+Kroki `run` wołają wyłącznie skrypty ze `scripts/`, bez `continue-on-error`. `scripts/build.sh` dopisuje `sha256=<suma>` do pliku wskazanego przez `GITHUB_OUTPUT`, gdy ta zmienna jest ustawiona.
+
+**`ci.yml`**: `on: pull_request`; jedno zadanie `tests` z `uses: ./.github/workflows/tests.yml` i `version: ${{ github.event.pull_request.head.sha }}`; `permissions: contents: read`; `concurrency` jak dziś (anulowanie starszych przebiegów tego samego PR).
+
+**`publish.yml`** (`name: Publikacja`)
+
+| Element | Wartość |
+|---|---|
+| `on` | etap 1: `push` z `branches: [main]`; etap 2 dodaje `workflow_dispatch` bez wejść. Nic więcej |
+| `permissions` (workflow) | `contents: read` |
+| `concurrency` | `group: publikacja`, `cancel-in-progress: false` |
+| `env` | `POSTDEPLOY_URL: https://cieyhomelab.github.io/kulki/` |
+
+| Zadanie | `needs` | Warunek | Uprawnienia | Co robi |
+|---|---|---|---|---|
+| `tests` | | | | `uses: ./.github/workflows/tests.yml`, `version: ${{ github.sha }}` |
+| `gate` | `tests` | | | `node tools/publish-gate.js`; wyjścia `publish` (`true`\|`false`) i `deadline` (teraz + 900 s) |
+| `deploy` | `tests`, `gate` | `needs.gate.outputs.publish == 'true'` | `pages: write`, `id-token: write` | `environment: github-pages`; pobiera artefakt `index-html`, `node tools/pages-package.js`, `actions/upload-pages-artifact`, `actions/deploy-pages` |
+| `verify` | `tests`, `gate`, `deploy` | | | `scripts/test-e2e.sh --project postdeploy` z `POSTDEPLOY_VERSION` = commit, `POSTDEPLOY_SHA256`, `POSTDEPLOY_DEADLINE`; `timeout-minutes: 25`; przy błędzie wysyła `test-results/` |
+| `result` | `tests`, `gate`, `deploy`, `verify` | `always()` | `actions: read` | `node tools/publication-result.js`: wynik do podsumowania przebiegu; kontrola wpisu w historii |
+
+Zadania `gate`, `deploy`, `verify` i `result` nie mają pola `name`, żeby nazwa zadania w API była równa identyfikatorowi. Zadania `gate`, `deploy` i `verify` nie mają `always()`, `!cancelled()` ani `continue-on-error`. Kroki `run` w `publish.yml` wołają tylko `scripts/*.sh` albo `node tools/*.js`. Akcje wyłącznie z `actions/*`, przypięte do wersji głównej aktualnej w dniu implementacji (dziś: `checkout@v5`, `setup-node@v5`, `upload-artifact@v5`, `download-artifact@v8`, `upload-pages-artifact@v5`, `deploy-pages@v5`).
+
+#### Narzędzia w `tools/`
+
+Każde ma czystą funkcję z testem jednostkowym w `tests/unit/` i cienką część wykonywalną. Wypisują krótki wynik na stdout, błędy na stderr, a wyjścia zadań dopisują do pliku z `GITHUB_OUTPUT`.
+
+| Polecenie | Wejście | Zachowanie | Kod wyjścia |
+|---|---|---|---|
+| `node tools/publish-gate.js` | `GITHUB_REF`, `GITHUB_SHA`; czubek `main` z `git ls-remote origin refs/heads/main` | `publish=true` tylko gdy `GITHUB_REF` to `refs/heads/main` i `GITHUB_SHA` jest równy czubkowi; zawsze wypisuje powód | `0` także przy `publish=false`; różny od zera tylko gdy czubka nie da się odczytać |
+| `node tools/pages-package.js <plik> <katalog>` | plik gry, katalog docelowy (ma nie istnieć), `EXPECTED_SHA256` | tworzy katalog z kopią pliku jako `index.html`, wypisuje pełną zawartość katalogu | różny od zera, gdy katalog zawiera cokolwiek poza jednym `index.html` albo suma pliku jest inna niż `EXPECTED_SHA256` |
+| `node tools/publication-result.js` | `GATE_RESULT`, `DEPLOY_RESULT`, `VERIFY_RESULT` (z `needs.*.result`), `GITHUB_REPOSITORY`, `GITHUB_RUN_ID`, `GITHUB_SHA`, `GITHUB_TOKEN` | liczy wynik regułą z „Modelu danych”, dopisuje do `GITHUB_STEP_SUMMARY` linię `Wynik publikacji: <wynik>` z wersją; odczytuje ten przebieg i jego zadania przez API i sprawdza zgodność | różny od zera, gdy `head_sha` wpisu jest inny niż `GITHUB_SHA` albo wynik policzony z API jest inny niż policzony z `needs` |
+
+#### Odczyt historii publikacji
+
+- W przeglądarce: repozytorium → Actions → „Publikacja”. Wynik jest w podsumowaniu przebiegu.
+- Przez API: `GET /repos/cieyhomelab/kulki/actions/workflows/publish.yml/runs` (pola `head_sha`, `run_started_at`, `status`, `conclusion`), a dla wyniku `GET /repos/cieyhomelab/kulki/actions/runs/{id}/jobs` i reguła z „Modelu danych” na zadaniach o nazwach `gate`, `deploy`, `verify`. Przebieg z `conclusion: cancelled` bez zadania `deploy` ma wynik `pominięta`.
+- „Najnowszy wpis” w kryterium P2 to najnowszy przebieg, który nie czeka w kolejce; w chwili kontroli jest nim przebieg wykonujący kontrolę.
+
+#### Odpowiedzi spod adresu gry (sprawdzane przez `postdeploy`)
+
+| Żądanie | Oczekiwana odpowiedź | Tryb atrapy |
+|---|---|---|
+| `GET {adres}` | 200, treść o sumie `POSTDEPLOY_SHA256`, znacznik wersji równy `POSTDEPLOY_VERSION` | tak |
+| `GET {adres}index.html` | 200, treść identyczna jak wyżej | tak |
+| `GET http://cieyhomelab.github.io/kulki/` bez podążania za przekierowaniem | 301, `Location` zaczyna się od `https://` | nie (`test.skip(!isLive, …)`) |
+| `GET {adres}{ścieżka}` dla każdej ścieżki z listy w P4 | 404 | tak |
+
+### Integracje
+
+| Integracja | Dostawca | Tryb atrapy | Sekrety |
+|---|---|---|---|
+| Hosting gry | GitHub Pages (wymaganie właściciela), publikacja artefaktem przez `actions/deploy-pages` | usługa `web` (nginx) ze stosu Compose: serwuje tylko `index.html`, na resztę odpowiada 404. Włączana brakiem `POSTDEPLOY_URL`. Nie odtwarza przekierowania na HTTPS ani opóźnienia hostingu | brak; `GITHUB_TOKEN` z `pages: write` i `id-token: write` |
+| Odczyt historii publikacji | REST API GitHuba (Actions) | czysta funkcja reguły wyniku testowana jednostkowo na przykładowych odpowiedziach; wywołanie API tylko w zadaniu `result` | brak; `GITHUB_TOKEN` z `actions: read` |
+
+Samo umieszczenie pliku (`deploy`) nie ma atrapy: da się je wykonać tylko z gałęzi `main` prawdziwego repozytorium. Dlatego całe zachowanie, które da się sprawdzić wcześniej, jest poza nim: paczka w `tools/pages-package.js`, decyzja w `tools/publish-gate.js`, a kształt workflow w testach konfiguracji.
+
+**Wymagane sekrety:** brak.
+
+**Czynność właściciela (jednorazowa):** Settings → Pages → Build and deployment → Source: „GitHub Actions”. Po przełączeniu GitHub tworzy środowisko `github-pages` z regułą „tylko gałąź domyślna”. Najlepiej wykonać ją przed scaleniem kroku 1.4; do pierwszej udanej publikacji pod adresem zostaje wtedy ostatnia strona z README. Jeśli przełączenie nastąpi po scaleniu, pierwsza publikacja ma wynik `nieudana`, a właściciel ponawia ją przyciskiem „Re-run all jobs” w tym przebiegu (bramka wersji na to pozwala, dopóki commit jest czubkiem `main`).
+
+### Plan implementacji
+
+Każdy krok kończy się przechodzącą bramką walidacji i zostawia działającą grę. Gra się nie zmienia; scenariusze S1–S9 muszą przechodzić po każdym kroku bez zmian w testach.
+
+**Zależności między etapami**
+
+| Etap | Zależy od | Uwagi |
+|---|---|---|
+| 1. Gra pod adresem (P1–P4) | nic (tylko szkielet z tego PR) | |
+| 2. Ręczne ponowienie (P5) | etap 1 | jeden mały krok; dotyka `publish.yml` i jego testów |
+
+**Szkielet z tego PR:** zależność `yaml` i `tests/unit/workflows/helpers/load-workflow.js` z testem istniejącego `ci.yml`; projekt Playwrighta `postdeploy` z `tests/postdeploy/helpers/target.js` i testem `smoke.spec.js`; przekazanie `POSTDEPLOY_URL` w `compose.e2e.yml`.
+
+#### Etap 1: gra pod adresem (P1, P2, P3, P4)
+
+| Krok | Zależy od | Zakres | Testy |
+|---|---|---|---|
+| 1.1 Znacznik wersji i powtarzalne budowanie | | znacznik `<!-- inline:version -->` w szablonie i `tools/inline.js`; `KULKI_VERSION` z walidacją w `tools/build.js`; `tsconfigRaw`; argument `KULKI_VERSION` w `Dockerfile` i `compose.e2e.yml`; `sha256` w `scripts/build.sh`; `POSTDEPLOY_SHA256` i `POSTDEPLOY_VERSION` w `compose.e2e.yml` | jednostkowe: wstawianie znacznika, walidacja wartości. Integracyjne: dokładnie jeden znacznik, wartość `dev`, brak wartości w tekście widocznym. `postdeploy` (atrapa): suma odpowiedzi równa oczekiwanej, `index.html` identyczny z adresem głównym, znacznik równy `POSTDEPLOY_VERSION` |
+| 1.2 Sprawdzenie po publikacji | 1.1 | `tests/postdeploy/p1-gra-pod-adresem.spec.js`, `p2-wersja.spec.js`, `p4-tylko-gra.spec.js`; projekt gotowości z ponawianiem do `POSTDEPLOY_DEADLINE`; pomijanie pamięci podręcznej | wszystkie kryteria `[po publikacji]` z P1, P2 (wersja, brak wersji w tekście) i P4 (lista 404, plansza zamiast README) przechodzą w trybie atrapy; przekierowanie na HTTPS pominięte poza trybem na żywo |
+| 1.3 Narzędzia publikacji | | `tools/publish-gate.js`, `tools/pages-package.js`, `tools/publication-result.js` | jednostkowe: bramka (inna gałąź, commit nie jest czubkiem, zgodność), paczka (jeden plik, zła suma, katalog z dodatkowym plikiem), reguła wyniku dla każdej kombinacji wyników zadań i dla przykładowych odpowiedzi API |
+| 1.4 Workflow | 1.1, 1.2, 1.3 | `tests.yml`, `ci.yml` jako wywołanie, `publish.yml` (wyzwalacz `push` do `main`); aktualizacja `AGENTS.md`, `SDLC.md`, `BACKWARD_COMPATIBILITY.md` (punkt 4), `README.md` (adres gry) | `[konfiguracja]`: wyzwalacze `publish.yml` i `ci.yml` (P2); `concurrency` i warunek `deploy` (P2); `needs` i brak `continue-on-error`, pięć skryptów w `tests.yml` (P3); uprawnienia. Test z `tests/unit/workflows/ci.test.js` przenosi się na `tests.yml` |
+| 1.5 Pierwsza publikacja i odbiór | 1.4 scalone | czynność właściciela (wyżej); bez zmian w kodzie poza ewentualnymi poprawkami | pierwsze udane sprawdzenie po publikacji potwierdza P1, P2, P4 na żywo; próby `[ręcznie]` z P2 i P3 opisane w PR albo w issue odbioru |
+
+Kroki 1.1 i 1.3 są od siebie niezależne i mogą powstawać równolegle. Krok 1.2 można zacząć równolegle z 1.3.
+
+Uwagi do kroków:
+
+- **1.1:** po tym kroku plik z obrazu Dockera i plik ze `scripts/build.sh` mają tę samą sumę dla tej samej wartości `KULKI_VERSION`. Kontrola ręczna przed PR: porównać `sha256sum dist/index.html` z sumą pliku z etapu `web` obrazu.
+- **1.2:** kryterium „brak wersji w tekście widocznym” ma sens tylko dla wersji będącej identyfikatorem commita; dla `dev` test sprawdza sam znacznik. W CI wersja jest identyfikatorem commita także w trybie atrapy, więc kryterium jest sprawdzane w każdym PR.
+- **1.2:** testy stanu gry (ruch, odświeżenie, najlepszy wynik po zamknięciu karty) używają `window.__kulki` tak jak testy S1–S9 i działają w jednym kontekście przeglądarki; „zamknięcie karty” to zamknięcie strony i otwarcie nowej w tym samym kontekście.
+- **1.4:** `publish.yml` nie da się uruchomić przed scaleniem do `main`. PR sprawdza go testami konfiguracji, a `tests.yml` działa w nim naprawdę przez `ci.yml`. Pierwszy prawdziwy przebieg jest w kroku 1.5; poprawki idą kolejnym PR.
+- **1.5, próby ręczne:** dwie szybkie zmiany w `main` (P2); wersja z czerwonym testem (P3, wynik `pominięta`, adres bez zmian); błąd umieszczenia i błąd sprawdzenia (P3) wystarczy udokumentować na przebiegu, który wystąpił naturalnie, np. pierwszym przed przełączeniem źródła Pages; nie psujemy `main` celowo tylko po to.
+
+#### Etap 2: ręczne ponowienie (P5). Zależy od etapu 1
+
+| Krok | Zależy od | Zakres | Testy |
+|---|---|---|---|
+| 2.1 Ręczne uruchomienie | 1.4 | `workflow_dispatch` w `publish.yml`; opis w `README.md`, jak ponowić publikację | `[konfiguracja]`: `on` to dokładnie `push` do `main` i `workflow_dispatch`; ręczne uruchomienie nie ma osobnej ścieżki zadań (te same `needs`); bramka odmawia dla gałęzi innej niż `main` (test jednostkowy z 1.3). Próby `[ręcznie]` z P5 opisane w PR |
+
+#### Miejsca wspólne przy pracy równoległej
+
+- `tools/build.js`, `tools/inline.js`, `Dockerfile`, `compose.e2e.yml`: tylko krok 1.1.
+- `tests/e2e/playwright.config.js`: tylko krok 1.2 (projekt gotowości).
+- `.github/workflows/`: tylko kroki 1.4 i 2.1, po kolei.
+- `.env.example`: kroki 1.1 i 1.2 dopisują swoje zmienne; konflikt rozwiązuje się przez zachowanie obu wpisów.
