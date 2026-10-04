@@ -5,3 +5,5 @@ playwright-report/
 coverage/
 .env
 *.log
+.ai/qa/artifacts_*/
+.ai/qa/test-env.json
