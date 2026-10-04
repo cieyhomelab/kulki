@@ -14,8 +14,19 @@ describe('Publication workflow (publish.yml)', () => {
     }
   });
 
-  it('P2: is triggered only by a push to main', async () => {
-    expect((await loadWorkflow('publish.yml')).on).toEqual({ push: { branches: ['main'] } });
+  it('P2, P5: is triggered only by a push to main or a manual run', async () => {
+    expect((await loadWorkflow('publish.yml')).on).toEqual({
+      push: { branches: ['main'] },
+      workflow_dispatch: null,
+    });
+  });
+
+  it('P5: a manual run has no inputs and no jobs of its own, so it takes the same steps', async () => {
+    const workflow = await loadWorkflow('publish.yml');
+
+    expect(workflow.on.workflow_dispatch).toBeNull();
+    expect(Object.keys(workflow.jobs)).toEqual(['tests', 'gate', 'deploy', 'verify', 'result']);
+    expect(JSON.stringify(workflow.jobs)).not.toMatch(/github\.event_name|github\.event\.inputs/);
   });
 
   it('P2: never runs two publications at once and never cancels a running one', async () => {

@@ -10,6 +10,10 @@ Przeglądarkowa gra logiczna dla jednego gracza, inspirowana Color Lines / Kulki
 
 Gra jest dostępna pod adresem https://cieyhomelab.github.io/kulki/. Po każdej zmianie w `main` z zielonymi testami nowa wersja trafia tam automatycznie (workflow „Publikacja”).
 
+### Ponowienie publikacji
+
+Właściciel może powtórzyć publikację ręcznie: w repozytorium na GitHubie otwórz **Actions**, wybierz workflow „Publikacja”, kliknij **Run workflow** i zostaw gałąź `main`. Przebiega cały proces jak po zmianie w `main`: testy, umieszczenie gry pod adresem, sprawdzenie po publikacji; pod adresem trafia aktualna wersja z `main`. Uruchomienie dla innej gałęzi uruchamia testy, ale niczego nie publikuje.
+
 Albo zbuduj ją sam:
 
 ```bash
