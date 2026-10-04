@@ -10,6 +10,10 @@
 #
 # Extra arguments go to `playwright test`, e.g.:
 #   scripts/test-e2e.sh --project chromium start-screen
+#
+# The `postdeploy` project checks the `web` service (mock mode) unless
+# POSTDEPLOY_URL points it at the published game:
+#   POSTDEPLOY_URL=https://cieyhomelab.github.io/kulki/ scripts/test-e2e.sh --project postdeploy
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."

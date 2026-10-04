@@ -6,8 +6,9 @@ Instrukcja dla agentów i ludzi pracujących w tym repozytorium. Przeczytaj ją 
 
 **Kulki** to przeglądarkowa gra logiczna dla jednego gracza (Color Lines / Kulki 98). Produktem jest **jeden samodzielny plik `dist/index.html`**: HTML, CSS i czysty JavaScript, bez bibliotek, bez backendu i bez żadnych zasobów z sieci. Interfejs jest wyłącznie po polsku.
 
-- Specyfikacja (źródło prawdy o zachowaniu): [.ai/specs/2026-10-04-gra-w-kulki.md](.ai/specs/2026-10-04-gra-w-kulki.md)
-- Stos i uzasadnienie: [docs/adr/0001-stos-technologiczny.md](docs/adr/0001-stos-technologiczny.md)
+- Specyfikacja gry (źródło prawdy o zachowaniu): [.ai/specs/2026-10-04-gra-w-kulki.md](.ai/specs/2026-10-04-gra-w-kulki.md)
+- Specyfikacja publikacji pod `https://cieyhomelab.github.io/kulki/`: [.ai/specs/2026-10-04-publikacja-na-github-pages.md](.ai/specs/2026-10-04-publikacja-na-github-pages.md)
+- Stos i uzasadnienie: [docs/adr/0001-stos-technologiczny.md](docs/adr/0001-stos-technologiczny.md); sposób publikacji: [docs/adr/0002-publikacja-na-github-pages.md](docs/adr/0002-publikacja-na-github-pages.md)
 - Proces i etykiety: [SDLC.md](SDLC.md); reguły przeglądu: [CODE_REVIEW.md](CODE_REVIEW.md); chronione kontrakty: [BACKWARD_COMPATIBILITY.md](BACKWARD_COMPATIBILITY.md); konfiguracja pipeline'u: `.ai/agentic.config.json`
 
 ## Stos
@@ -21,6 +22,8 @@ Instrukcja dla agentów i ludzi pracujących w tym repozytorium. Przeczytaj ją 
 | Testy jednostkowe i integracyjne | Vitest; integracyjne używają jsdom na zbudowanym pliku |
 | Testy E2E | Playwright (Chromium, Firefox, WebKit) w Docker Compose |
 | Uruchamianie | `docker compose up --build` (nginx z `dist/index.html`) |
+| Publikacja | GitHub Pages przez GitHub Actions (artefakt z jednym `index.html`), patrz ADR 0002 |
+| Testy konfiguracji CI | Vitest + parser `yaml` na plikach `.github/workflows/` |
 | Narzędzia | Node.js ≥ 20.19 (CI i obrazy: 24), npm |
 
 ## Struktura katalogów i gdzie co dodawać
@@ -38,8 +41,10 @@ src/
 tools/              skrypty budujące (Node), nie trafiają do produktu
 tests/
   unit/             testy jednostkowe, układ katalogów jak w src/ i tools/
+    workflows/      testy konfiguracji plików .github/workflows; helpers/load-workflow.js
   integration/      testy na zbudowanym dist/index.html w jsdom; helpers/load-game.js
-  e2e/              testy Playwright; jeden plik na scenariusz specyfikacji
+  e2e/              testy Playwright; jeden plik na scenariusz specyfikacji gry
+  postdeploy/       sprawdzenie po publikacji (projekt Playwright `postdeploy`); helpers/target.js
 scripts/            jednolity punkt wejścia dla agentów i CI
 docs/adr/           decyzje architektoniczne, kolejne numery
 .ai/specs/          specyfikacje
@@ -65,6 +70,9 @@ Granice modułów:
 | budowania i jednego pliku | `tools/build.js`, `tools/inline.js`, `tests/integration/single-file.test.js` | wynik to jeden plik bez odwołań na zewnątrz |
 | testów E2E i Compose | `scripts/test-e2e.sh`, `compose.e2e.yml`, `Dockerfile`, `tests/e2e/playwright.config.js` | kontrakt E2E poniżej; bez stałych portów |
 | CI | `.github/workflows/ci.yml` | CI woła tylko skrypty ze `scripts/` |
+| publikacji, workflow „Publikacja”, historii publikacji | specyfikacja publikacji (sekcje techniczne), ADR 0002, `.github/workflows/` | każda reguła konfiguracji ma test w `tests/unit/workflows/`; uprawnienia do Pages tylko w zadaniu `deploy`; logika w `tools/` albo `scripts/`, nie w YAML-u |
+| sprawdzenia po publikacji | scenariusze P1–P4, `tests/postdeploy/`, `tests/postdeploy/helpers/target.js` | test przechodzi w trybie atrapy; adresy względne (`./`); test tylko dla żywego adresu ma `test.skip(!isLive, …)` |
+| identyfikatora wersji w pliku gry | „Dane” w specyfikacji publikacji, `tools/build.js`, `tools/inline.js` | `KULKI_VERSION` albo `dev`; niewidoczny na ekranie; budowanie daje ten sam plik w każdym środowisku |
 
 ## Komendy
 
@@ -80,19 +88,25 @@ Wszyscy (agenci, ludzie, CI) używają tych samych skryptów. Każdy kończy si�
 
 Bramka walidacji to te pięć skryptów w tej kolejności. Dodatkowe argumenty trafiają do narzędzia, np. `scripts/test-unit.sh tests/unit/inline.test.js` albo `scripts/test-e2e.sh --project chromium start-screen`. Formatowanie poprawia `npm run format`.
 
+`scripts/test-e2e.sh` uruchamia cztery projekty Playwrighta: `chromium`, `firefox` i `webkit` na `tests/e2e/` oraz `postdeploy` (Chromium) na `tests/postdeploy/`.
+
 ### Kontrakt `scripts/test-e2e.sh`
 
-- Stawia własny stos Compose o nazwie projektu `e2e-${E2E_RUN_ID}`. Bez tej zmiennej identyfikator jest losowy. Kilka przebiegów może działać jednocześnie; przy pracy równoległej ustaw `E2E_RUN_ID` na identyfikator zadania.
+- Stawia własny stos Compose o nazwie projektu `e2e-${E2E_RUN_ID}`. Bez tej zmiennej identyfikator jest losowy. Kilka przebiegów może działać jednocześnie; przy pracy równoległej ustaw `E2E_RUN_ID` na identyfikator zadania i ogranicz liczbę procesów testów: `scripts/test-e2e.sh --workers 2`. Domyślnie każdy przebieg bierze połowę rdzeni maszyny, więc dwa pełne przebiegi naraz ją przeciążają i testy zależne od czasu animacji (S2, S3) zaczynają losowo padać.
 - Nie publikuje portów na hoście. Testy działają w kontenerze `e2e` w sieci Compose i łączą się z grą pod `http://web` (`E2E_BASE_URL`). Ten sam plik jest też dostępny z dysku pod `E2E_FILE_URL` (`file://`).
 - Zawsze sprząta: `docker compose down -v` w `trap`, także przy błędzie i przerwaniu. Po przebiegu nie zostaje kontener, sieć, wolumen ani obraz z prefiksem `e2e-`.
 - Przy niepowodzeniu kopiuje ślady i zrzuty ekranu Playwrighta do `test-results/e2e-<id>/`.
 - Wczytuje `${SH_SECRETS_DIR:-$HOME/.sh-secrets}/kulki.env`, jeśli plik istnieje. Projekt nie ma dziś żadnych sekretów i komplet testów działa bez nich.
+- Projekt `postdeploy` ma dwa tryby. **Atrapa** (domyślny, `POSTDEPLOY_URL` puste): sprawdza usługę `web` ze stosu Compose i jest częścią bramki. **Na żywo**: `POSTDEPLOY_URL=https://cieyhomelab.github.io/kulki/ scripts/test-e2e.sh --project postdeploy` sprawdza opublikowaną grę; tak woła go workflow „Publikacja” po umieszczeniu gry. Tryb na żywo potrzebuje internetu, niczego nie publikuje i niczego nie zmienia pod adresem. Pozostałe zmienne `POSTDEPLOY_*` opisuje specyfikacja publikacji i `.env.example`.
 - Wersja Playwrighta jest czytana z `package.json` (`@playwright/test`, wersja dokładna) i musi mieć odpowiadający obraz `mcr.microsoft.com/playwright`. Podbijaj ją tylko w `package.json`.
 
 ## Zasady testowania
 
 - **Każda zmiana zachowania ma test.** Poprawka błędu zaczyna się od testu, który ten błąd odtwarza.
 - **Każdy scenariusz ze specyfikacji ma test E2E**, a każde kryterium akceptacji ma co najmniej jeden test. Plik: `tests/e2e/s<numer>-<nazwa>.spec.js`, np. `s4-zbicie-linii.spec.js`; tytuł testu zaczyna się od numeru scenariusza (`S4: ...`).
+- **Scenariusze publikacji (P1–P5)** mają test tam, gdzie wskazuje oznaczenie kryterium: `[po publikacji]` w `tests/postdeploy/p<numer>-<nazwa>.spec.js` (tytuł `P1: ...`), `[konfiguracja]` w `tests/unit/workflows/` (tytuł także zaczyna się od numeru scenariusza). Kryteria `[ręcznie]` nie mają testu; próbę opisuje się w PR.
+- Testy w `tests/postdeploy/` muszą przechodzić w trybie atrapy. Nie zmieniają niczego poza `localStorage` własnej przeglądarki, pobierają strony z pominięciem pamięci podręcznej i używają adresów względnych (`./`, `./index.html`), bo gra jest opublikowana pod ścieżką `/kulki/`. Na pojawienie się wersji czekają asercją z ponawianiem (`expect(...).toPass`), nie pętlą ze stałym opóźnieniem.
+- Testy konfiguracji czytają workflow przez `tests/unit/workflows/helpers/load-workflow.js` i sprawdzają sparsowaną strukturę, nie tekst pliku.
 - Reguły gry sprawdzaj przede wszystkim jednostkowo w `tests/unit/game/`; E2E potwierdza, że gracz widzi ich skutek.
 - Testy E2E ustawiają stan przez `window.__kulki` (zadana plansza, wynik, podgląd, przewidywalne losowanie) i czytają go z DOM. Nie polegaj na prawdziwej losowości.
 - Nie używaj stałych opóźnień (`waitForTimeout`, `setTimeout` w teście). Czekaj na stan: `data-animating="false"`, widoczność elementu, asercje z automatycznym ponawianiem.
@@ -115,7 +129,7 @@ Bramka walidacji to te pięć skryptów w tej kolejności. Dodatkowe argumenty t
 
 ## Sekrety
 
-Projekt nie ma sekretów. Gdyby się pojawiły: nigdy w repozytorium, tylko w `${SH_SECRETS_DIR:-$HOME/.sh-secrets}/kulki.env`, a każda nowa zmienna trafia do `.env.example` z opisem i informacją, czy jest wymagana. Plik `.env` jest ignorowany przez git.
+Projekt nie ma sekretów. Publikacja używa wyłącznie automatycznego `GITHUB_TOKEN` z GitHub Actions; nie twórz tokenów osobistych ani sekretów repozytorium. Gdyby sekrety się pojawiły: nigdy w repozytorium, tylko w `${SH_SECRETS_DIR:-$HOME/.sh-secrets}/kulki.env`, a każda nowa zmienna trafia do `.env.example` z opisem i informacją, czy jest wymagana. Plik `.env` jest ignorowany przez git.
 
 ## Czego nie robić
 
@@ -129,4 +143,8 @@ Projekt nie ma sekretów. Gdyby się pojawiły: nigdy w repozytorium, tylko w `$
 - Nie publikuj stałych portów w testach E2E i nie omijaj `scripts/test-e2e.sh` własnym `docker compose up`.
 - Nie wyłączaj ani nie pomijaj testów (`.skip`, `.only`), nie używaj `--no-verify`, nie rób force-push.
 - Nie zmieniaj kontraktów z `BACKWARD_COMPATIBILITY.md` bez opisanej tam ścieżki.
+- Nie publikuj gry inną drogą niż workflow „Publikacja”: żadnej gałęzi `gh-pages`, żadnego ręcznego wgrywania, żadnej publikacji z PR albo z gałęzi innej niż `main`.
+- Nie dodawaj do publikowanej paczki niczego poza `index.html` (także strony 404, ikony, `robots.txt`).
+- Nie pokazuj identyfikatora wersji na ekranie gry i nie uzależniaj od niego zachowania gry.
+- Nie zmieniaj ustawień repozytorium (Pages, środowiska, ochrona gałęzi) z kodu ani z workflow; to czynności właściciela opisywane w PR.
 - Nie implementuj rzeczy z sekcji „Poza zakresem” specyfikacji.

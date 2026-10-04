@@ -278,6 +278,8 @@ Proponowany podział `src/game/` (jeden plik, jedna odpowiedzialność, żeby za
 
 **Granice i uruchamianie.** Plik musi działać z `file://`, więc nie ma modułów ładowanych w czasie działania, Service Workera ani założenia, że `localStorage` jest dostępny. Docker Compose (`compose.yml`) serwuje `dist/index.html` przez nginx i służy jako „hosting statyczny” do uruchamiania oraz do testów E2E.
 
+**Identyfikator wersji.** Zbudowany plik ma w `<head>` dokładnie jeden znacznik `<meta name="kulki-version" content="…">`. Wartość pochodzi ze zmiennej `KULKI_VERSION` przy budowaniu (pełny identyfikator commita w procesie publikacji); bez niej jest to stałe `dev`. Gra tego znacznika nie czyta i nie pokazuje go na ekranie; służy wyłącznie do sprawdzenia, która wersja jest opublikowana. Szczegóły i kontrakt: [specyfikacja publikacji](2026-10-04-publikacja-na-github-pages.md), sekcje techniczne. Budowanie jest powtarzalne: te same źródła i ta sama wartość `KULKI_VERSION` dają plik identyczny co do bajta w każdym środowisku.
+
 ### Model danych
 
 Nie ma bazy danych. Dane żyją w `localStorage` przeglądarki pod trzema niezależnymi kluczami. Specyfikacja nie oznacza żadnych danych jako osobowe i żadne dane nie opuszczają urządzenia, więc nie ma szczególnej obsługi danych osobowych.

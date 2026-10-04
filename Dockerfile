@@ -22,5 +22,6 @@ ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY tests/e2e ./tests/e2e
+COPY tests/postdeploy ./tests/postdeploy
 COPY --from=build /app/dist/index.html ./dist/index.html
 ENTRYPOINT ["npx", "playwright", "test", "--config", "tests/e2e/playwright.config.js"]
