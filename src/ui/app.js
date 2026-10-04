@@ -1,7 +1,7 @@
 import { boardToRows } from '../game/board.js';
 import { gameFromSnapshot, newGame, playTurn } from '../game/game.js';
 import { TEXTS } from './texts.js';
-import { REJECT_MS, moveStepMs } from './timing.js';
+import { CLEAR_MS, REJECT_MS, SPAWN_MS, moveStepMs } from './timing.js';
 
 const BOARD_SIZE = 9;
 const PREVIEW_SIZE = 3;
@@ -209,6 +209,7 @@ export function startApp(doc, rng) {
   // simply starts a new game.
   byTestId('new-game').addEventListener('click', () => {
     resetInterface();
+    best = Math.max(best, game.score);
     game = newGame(rng);
     render();
   });
@@ -222,21 +223,86 @@ export function startApp(doc, rng) {
     rejectTimer = setTimeout(clearRejection, REJECT_MS);
   }
 
-  /** Shows the ball walking along `path`, then the state after the whole computed turn. */
-  function animateMove(/** @type {number[]} */ path, /** @type {number} */ color) {
-    const stepMs = moveStepMs(path.length - 1);
+  /**
+   * @param {number} score value to show in the score box
+   * @param {number} bestBefore best score before the turn; the best box shows the larger of both
+   */
+  function showScores(score, bestBefore) {
+    byTestId('score').textContent = String(score);
+    byTestId('best-score').textContent = String(Math.max(bestBefore, score));
+  }
+
+  /**
+   * Plays the events of an already computed turn one after another on a copy of the board the
+   * player saw. The score on screen changes at each `cleared` event; the final render shows the
+   * logical state.
+   */
+  function playEvents(
+    /** @type {import('../game/game.js').TurnEvent[]} */ events,
+    /** @type {readonly number[]} */ before,
+    /** @type {number} */ scoreBefore,
+    /** @type {number} */ bestBefore,
+  ) {
+    const shown = before.slice();
+    let shownScore = scoreBefore;
+    let index = 0;
     boardEl.dataset.animating = 'true';
+
+    const finish = () => {
+      boardEl.dataset.animating = 'false';
+      render();
+    };
+
+    const next = () => {
+      const event = events[index];
+      index += 1;
+      if (event === undefined || event.type === 'gameOver') {
+        finish();
+      } else if (event.type === 'moved') {
+        animateMove(event, shown, next);
+      } else if (event.type === 'cleared') {
+        for (const cell of event.cells) shown[cell] = 0;
+        shownScore += event.points;
+        showScores(shownScore, bestBefore);
+        paint(shown);
+        moveTimer = setTimeout(next, CLEAR_MS);
+      } else {
+        event.cells.forEach((cell, i) => {
+          shown[cell] = event.colors[i];
+        });
+        paint(shown);
+        moveTimer = setTimeout(next, SPAWN_MS);
+      }
+    };
+    next();
+  }
+
+  /** @param {readonly number[]} board */
+  function paint(board) {
+    board.forEach((color, i) => {
+      cells[i].dataset.color = String(color);
+    });
+  }
+
+  /** Shows the ball walking along the path, then hands over to `done`. */
+  function animateMove(
+    /** @type {{ path: number[] }} */ { path },
+    /** @type {number[]} */ shown,
+    /** @type {() => void} */ done,
+  ) {
+    const color = shown[path[0]];
+    const stepMs = moveStepMs(path.length - 1);
     let step = 0;
     const tick = () => {
       step += 1;
-      // The last step ends the animation in the same tick, so the total is steps x stepMs.
+      shown[path[step - 1]] = 0;
+      shown[path[step]] = color;
+      paint(shown);
+      // The last step hands over in the same tick, so the move takes steps x stepMs.
       if (step >= path.length - 1) {
-        boardEl.dataset.animating = 'false';
-        render();
+        done();
         return;
       }
-      cells[path[step - 1]].dataset.color = '0';
-      cells[path[step]].dataset.color = String(color);
       moveTimer = setTimeout(tick, stepMs);
     };
     moveTimer = setTimeout(tick, stepMs);
@@ -250,23 +316,22 @@ export function startApp(doc, rng) {
       return;
     }
     if (selected === null) return;
+    const before = game;
     const turn = playTurn(game, selected, index, rng);
     if (turn === null) {
       reject();
       return;
     }
-    const moved = turn.events[0];
-    const color = game.board[selected];
+    const start = selected;
+    const bestBefore = Math.max(best, before.score);
     selected = null;
     clearRejection();
-    // The turn is already computed; the screen catches up after the animation.
+    // The turn is already computed; the screen catches up while the events play.
     game = turn.state;
-    if (moved.type === 'moved') {
-      // Hold the ball on its start cell until the first step.
-      cells[moved.path[0]].dataset.selected = 'false';
-      cells[moved.path[0]].dataset.color = String(color);
-      animateMove(moved.path, color);
-    }
+    best = Math.max(best, game.score);
+    // Hold the ball on its start cell until the first step.
+    cells[start].dataset.selected = 'false';
+    playEvents(turn.events, before.board, before.score, bestBefore);
   }
 
   cells.forEach((cell, index) => cell.addEventListener('click', () => onCellClick(index)));

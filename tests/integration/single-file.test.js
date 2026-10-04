@@ -163,7 +163,7 @@ describe('move animation', () => {
     expect(window.__kulki.getState().score).toBeGreaterThan(0);
   });
 
-  it('finishes within 800 ms of timer delay on the longest paths', async () => {
+  it('finishes the walk within 600 ms of timer delay on the longest paths', async () => {
     const window = /** @type {any} */ ((await loadGame()).window);
     const board = [
       '1........',
@@ -180,7 +180,8 @@ describe('move animation', () => {
     const delays = /** @type {number[]} */ ([]);
     const original = window.setTimeout.bind(window);
     window.setTimeout = (/** @type {() => void} */ fn, /** @type {number} */ ms) => {
-      if (ms > 1) delays.push(ms); // ms === 1 is the test's own polling
+      // ms === 1 is the test's own polling; the 300 ms spawn pause after the walk is not a step
+      if (ms > 1 && ms < 300) delays.push(ms);
       return original(fn, ms);
     };
     click(0, 0);
@@ -188,6 +189,6 @@ describe('move animation', () => {
     await done();
     window.setTimeout = original;
     expect(delays.length).toBeGreaterThan(30);
-    expect(delays.reduce((sum, ms) => sum + ms, 0)).toBeLessThanOrEqual(800);
+    expect(delays.reduce((sum, ms) => sum + ms, 0)).toBeLessThanOrEqual(600);
   });
 });
