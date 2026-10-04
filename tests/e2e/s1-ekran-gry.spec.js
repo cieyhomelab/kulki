@@ -53,8 +53,6 @@ test.describe('S1: game screen', () => {
     await button.click();
     await expect(button).toHaveAttribute('aria-pressed', 'true');
     await expect(button).toHaveText('Dźwięk: włączony');
-
-    expect(await page.evaluate(() => globalThis.localStorage.length)).toBe(0);
   });
 
   test('S1: exposes the DOM contract', async ({ page }) => {

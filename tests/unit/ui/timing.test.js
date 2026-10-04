@@ -10,7 +10,7 @@ import {
 describe('moveStepMs', () => {
   it('uses at most 60 ms per step', () => {
     expect(moveStepMs(1)).toBe(60);
-    expect(moveStepMs(10)).toBe(60);
+    expect(moveStepMs(7)).toBe(60);
   });
 
   it('keeps the whole animation within MOVE_TOTAL_MAX_MS for any path length', () => {

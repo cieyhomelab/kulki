@@ -13,8 +13,7 @@ export function installTestApi(win, app, randomSource) {
       setRandom: (/** @type {{ queue?: unknown, seed?: unknown }} */ options = {}) =>
         randomSource.configure(options),
       getState: () => app.getState(),
-      // No sounds are played before stage 3.
-      getSoundLog: () => [],
+      getSoundLog: () => app.getSoundLog(),
     }),
     configurable: true,
   });
