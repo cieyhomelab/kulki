@@ -223,14 +223,14 @@ export function startApp(doc, rng) {
   }
 
   /** Shows the ball walking along `path`, then the state after the whole computed turn. */
-  function animateMove(/** @type {number[]} */ path) {
-    const color = game.board[path[path.length - 1]];
+  function animateMove(/** @type {number[]} */ path, /** @type {number} */ color) {
     const stepMs = moveStepMs(path.length - 1);
     boardEl.dataset.animating = 'true';
     let step = 0;
     const tick = () => {
       step += 1;
-      if (step >= path.length) {
+      // The last step ends the animation in the same tick, so the total is steps x stepMs.
+      if (step >= path.length - 1) {
         boardEl.dataset.animating = 'false';
         render();
         return;
@@ -265,7 +265,7 @@ export function startApp(doc, rng) {
       // Hold the ball on its start cell until the first step.
       cells[moved.path[0]].dataset.selected = 'false';
       cells[moved.path[0]].dataset.color = String(color);
-      animateMove(moved.path);
+      animateMove(moved.path, color);
     }
   }
 
