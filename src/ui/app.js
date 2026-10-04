@@ -1,5 +1,7 @@
+import { createSounds } from '../audio/sounds.js';
 import { boardToRows } from '../game/board.js';
 import { gameFromSnapshot, newGame, playTurn } from '../game/game.js';
+import { loadSoundOn, saveSoundOn } from '../storage/sound-setting.js';
 import { TEXTS } from './texts.js';
 import { CLEAR_MS, REJECT_MS, SPAWN_MS, moveStepMs } from './timing.js';
 
@@ -93,24 +95,25 @@ function buildPreview(doc) {
 
 /**
  * @param {Document} doc
+ * @param {import('../audio/sounds.js').Sounds} sounds
  * @returns {HTMLElement}
  */
-function buildSoundToggle(doc) {
-  const button = el(
-    doc,
-    'button',
-    {
-      type: 'button',
-      class: 'button',
-      'data-testid': 'sound-toggle',
-      'aria-pressed': 'true',
-    },
-    TEXTS.soundOn,
-  );
-  button.addEventListener('click', () => {
-    const on = button.getAttribute('aria-pressed') !== 'true';
+function buildSoundToggle(doc, sounds) {
+  const button = el(doc, 'button', {
+    type: 'button',
+    class: 'button',
+    'data-testid': 'sound-toggle',
+  });
+  const show = () => {
+    const on = sounds.isOn();
     button.setAttribute('aria-pressed', String(on));
     button.textContent = on ? TEXTS.soundOn : TEXTS.soundOff;
+  };
+  show();
+  button.addEventListener('click', () => {
+    sounds.setOn(!sounds.isOn());
+    saveSoundOn(sounds.isOn());
+    show();
   });
   return button;
 }
@@ -132,6 +135,10 @@ export function startApp(doc, rng) {
   }
   const app = root;
 
+  const sounds = createSounds({ on: loadSoundOn() });
+  // Browsers allow audio only after a player gesture; the first click creates the context.
+  doc.addEventListener('click', () => sounds.unlock(), { capture: true });
+
   const header = el(doc, 'header', { class: 'topbar' });
   header.append(
     el(doc, 'h1', {}, TEXTS.title),
@@ -148,7 +155,7 @@ export function startApp(doc, rng) {
       { type: 'button', class: 'button', 'data-testid': 'new-game' },
       TEXTS.newGame,
     ),
-    buildSoundToggle(doc),
+    buildSoundToggle(doc, sounds),
   );
 
   const main = el(doc, 'div', { class: 'layout' });
@@ -321,10 +328,13 @@ export function startApp(doc, rng) {
       const event = events[index];
       index += 1;
       if (event === undefined || event.type === 'gameOver') {
+        if (event) sounds.play('gameover');
         finish();
       } else if (event.type === 'moved') {
+        sounds.play('move');
         animateMove(event, shown, next);
       } else if (event.type === 'cleared') {
+        sounds.play('clear');
         for (const cell of event.cells) shown[cell] = 0;
         shownScore += event.points;
         showScores(shownScore, bestBefore);
@@ -384,6 +394,7 @@ export function startApp(doc, rng) {
     const before = game;
     const turn = playTurn(game, selected, index, rng);
     if (turn === null) {
+      sounds.play('reject');
       reject();
       return;
     }
@@ -414,6 +425,7 @@ export function startApp(doc, rng) {
       if (parsed.best !== undefined) best = parsed.best;
       render();
     },
+    getSoundLog: () => sounds.getLog(),
     getState() {
       return {
         board: boardToRows(game.board),
@@ -428,7 +440,7 @@ export function startApp(doc, rng) {
         record: game.record,
         animating: byTestId('board').dataset.animating === 'true',
         rejected: byTestId('board').dataset.rejected === 'true',
-        soundOn: byTestId('sound-toggle').getAttribute('aria-pressed') === 'true',
+        soundOn: sounds.isOn(),
       };
     },
   };
@@ -438,4 +450,5 @@ export function startApp(doc, rng) {
  * @typedef {object} AppController
  * @property {(snapshot: unknown) => void} setState replaces the game, see `window.__kulki`
  * @property {() => Record<string, unknown>} getState snapshot of what the screen shows
+ * @property {() => Array<{ event: string }>} getSoundLog sounds requested since the page loaded
  */

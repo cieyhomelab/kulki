@@ -59,7 +59,7 @@ describe('game screen DOM contract', () => {
     expect(byId('new-game')?.textContent).toBe('Nowa gra');
   });
 
-  it('toggles the sound button in memory only', async () => {
+  it('toggles the sound button and stores the setting', async () => {
     const window = (await loadGame()).window;
     const button = /** @type {HTMLElement} */ (
       window.document.querySelector('[data-testid="sound-toggle"]')
@@ -70,10 +70,11 @@ describe('game screen DOM contract', () => {
     button.click();
     expect(button.getAttribute('aria-pressed')).toBe('false');
     expect(button.textContent).toBe('Dźwięk: wyciszony');
+    expect(window.localStorage.getItem('kulki.sound.v1')).toBe('off');
 
     button.click();
     expect(button.getAttribute('aria-pressed')).toBe('true');
-    expect(window.localStorage.length).toBe(0);
+    expect(window.localStorage.getItem('kulki.sound.v1')).toBe('on');
   });
 });
 
