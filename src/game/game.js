@@ -1,7 +1,9 @@
 import { COLOR_COUNT, SPAWN_BALLS, START_BALLS } from './constants.js';
-import { boardFromRows, createEmptyBoard, withBall } from './board.js';
+import { boardFromRows, createEmptyBoard, emptyCells, withBall } from './board.js';
 import { findLines } from './lines.js';
+import { findPath } from './path.js';
 import { randomColor, randomEmptyCell } from './rng.js';
+import { scoreForCleared } from './score.js';
 
 /**
  * Immutable game state.
@@ -30,6 +32,85 @@ export function newGame(rng) {
     }
   } while (findLines(board).length > 0);
   return { board, score: 0, preview: randomColors(SPAWN_BALLS, rng), over: false, record: false };
+}
+
+/**
+ * One thing that happened during a turn, in the order it happened.
+ * @typedef {(
+ *   { type: 'moved', path: number[] } |
+ *   { type: 'cleared', cells: number[], points: number } |
+ *   { type: 'spawned', cells: number[], colors: number[] } |
+ *   { type: 'gameOver' }
+ * )} TurnEvent
+ */
+
+/**
+ * Plays a whole turn synchronously: move, line check, and when nothing was cleared the spawn of
+ * the previewed balls (repeated while a clearing leaves the board empty), then the end-of-game check.
+ * @param {GameState} state
+ * @param {number} from cell index of the ball to move
+ * @param {number} to cell index of the empty target
+ * @param {import('./rng.js').Rng} rng
+ * @returns {{ state: GameState, events: TurnEvent[] } | null} `null` when there is no path
+ * @throws {Error} when the game is over, `from` holds no ball or `to` is not empty
+ */
+export function playTurn(state, from, to, rng) {
+  if (state.over) throw new Error('the game is over');
+  if (state.board[from] === undefined || state.board[from] === 0) {
+    throw new Error(`cell ${from} holds no ball`);
+  }
+  if (state.board[to] !== 0) {
+    throw new Error(`cell ${to} is not empty`);
+  }
+  const path = findPath(state.board, from, to);
+  if (path === null) return null;
+
+  /** @type {TurnEvent[]} */
+  const events = [{ type: 'moved', path }];
+  let board = state.board.slice();
+  board[to] = board[from];
+  board[from] = 0;
+  let score = state.score;
+  let preview = state.preview;
+  let over = false;
+
+  /** Clears lines on `board`; returns whether anything was cleared. */
+  const clearLines = () => {
+    const cells = findLines(board);
+    if (cells.length === 0) return false;
+    const points = scoreForCleared(cells.length);
+    board = board.slice();
+    for (const cell of cells) board[cell] = 0;
+    score += points;
+    events.push({ type: 'cleared', cells, points });
+    return true;
+  };
+
+  const cleared = clearLines();
+  if (!cleared || emptyCells(board).length === board.length) {
+    let spawning = true;
+    while (spawning) {
+      const room = emptyCells(board).length;
+      const colors = preview.slice(0, Math.min(preview.length, room));
+      const cells = [];
+      for (const color of colors) {
+        const cell = randomEmptyCell(board, rng);
+        board = withBall(board, cell, color);
+        cells.push(cell);
+      }
+      if (cells.length > 0) events.push({ type: 'spawned', cells, colors });
+      const clearedNow = clearLines();
+      if (emptyCells(board).length === 0) {
+        over = true;
+        events.push({ type: 'gameOver' });
+        break;
+      }
+      preview = randomColors(SPAWN_BALLS, rng);
+      // A clearing that empties the board spawns the new preview right away.
+      spawning = clearedNow && emptyCells(board).length === board.length;
+    }
+  }
+  return { state: { board, score, preview, over, record: state.record }, events };
 }
 
 /**

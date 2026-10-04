@@ -121,3 +121,73 @@ describe('test interface window.__kulki', () => {
     expect(window.__kulki.getState()).toEqual(before);
   });
 });
+
+describe('move animation', () => {
+  /** @param {any} window @param {string[]} board */
+  function start(window, board) {
+    window.__kulki.setState({ board, score: 0, preview: [4, 5, 6], best: 0 });
+    const cell = (/** @type {number} */ r, /** @type {number} */ c) =>
+      window.document.querySelector(`[data-testid="cell-${r}-${c}"]`);
+    return {
+      cell,
+      click: (/** @type {number} */ r, /** @type {number} */ c) => cell(r, c).click(),
+      done: () =>
+        new Promise((resolve) => {
+          const poll = () =>
+            window.document.querySelector('[data-testid="board"]').dataset.animating === 'false'
+              ? resolve(undefined)
+              : window.setTimeout(poll, 1);
+          poll();
+        }),
+    };
+  }
+
+  it('keeps the ball colour on the path when the move completes a line', async () => {
+    const window = /** @type {any} */ ((await loadGame()).window);
+    const board = ['1111.....', '.........', '....1....', ...Array(6).fill('.........')];
+    const { cell, click, done } = start(window, board);
+    click(2, 4);
+    click(0, 4);
+    expect(cell(1, 4).dataset.color).toBe('0');
+    const seen = /** @type {string[]} */ ([]);
+    const sample = () => {
+      seen.push(cell(1, 4).dataset.color);
+      if (window.document.querySelector('[data-testid="board"]').dataset.animating === 'true') {
+        window.setTimeout(sample, 1);
+      }
+    };
+    sample();
+    await done();
+    expect(seen).toContain('1');
+    expect(seen.filter((color) => color !== '0' && color !== '1')).toEqual([]);
+    expect(window.__kulki.getState().score).toBeGreaterThan(0);
+  });
+
+  it('finishes within 800 ms of timer delay on the longest paths', async () => {
+    const window = /** @type {any} */ ((await loadGame()).window);
+    const board = [
+      '1........',
+      '22222222.',
+      '.........',
+      '.3333333 3'.replace(' ', ''),
+      '.........',
+      '22222222.',
+      '.........',
+      '.3333333 3'.replace(' ', ''),
+      '.........',
+    ];
+    const { click, done } = start(window, board);
+    const delays = /** @type {number[]} */ ([]);
+    const original = window.setTimeout.bind(window);
+    window.setTimeout = (/** @type {() => void} */ fn, /** @type {number} */ ms) => {
+      if (ms > 1) delays.push(ms); // ms === 1 is the test's own polling
+      return original(fn, ms);
+    };
+    click(0, 0);
+    click(8, 8);
+    await done();
+    window.setTimeout = original;
+    expect(delays.length).toBeGreaterThan(30);
+    expect(delays.reduce((sum, ms) => sum + ms, 0)).toBeLessThanOrEqual(800);
+  });
+});
