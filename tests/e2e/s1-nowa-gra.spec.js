@@ -114,7 +114,6 @@ test.describe('S1: new game', () => {
       );
       await page.getByTestId('new-game').click();
       await page.getByTestId('confirm-yes').click();
-      await page.getByTestId('confirm-yes').click();
       const board = await page.evaluate(
         () => /** @type {any} */ (globalThis).__kulki.getState().board,
       );
