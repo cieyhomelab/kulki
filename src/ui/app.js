@@ -1,6 +1,7 @@
 import { boardToRows } from '../game/board.js';
-import { gameFromSnapshot, newGame } from '../game/game.js';
+import { gameFromSnapshot, newGame, playTurn } from '../game/game.js';
 import { TEXTS } from './texts.js';
+import { REJECT_MS, moveStepMs } from './timing.js';
 
 const BOARD_SIZE = 9;
 const PREVIEW_SIZE = 3;
@@ -160,15 +161,42 @@ export function startApp(doc, rng) {
   // The best score lives in memory only until stage 2 adds persistence.
   let best = 0;
 
+  // Selection, animation and the rejection signal are interface state, not game state.
+  /** @type {number | null} */
+  let selected = null;
+  /** @type {ReturnType<typeof setTimeout> | undefined} */
+  let moveTimer;
+  /** @type {ReturnType<typeof setTimeout> | undefined} */
+  let rejectTimer;
+
   /** @param {string} testId */
   const byTestId = (testId) =>
     /** @type {HTMLElement} */ (root.querySelector(`[data-testid="${testId}"]`));
 
+  const boardEl = byTestId('board');
+  const cells = /** @type {HTMLElement[]} */ (
+    Array.from({ length: BOARD_SIZE * BOARD_SIZE }, (_, index) =>
+      byTestId(`cell-${Math.floor(index / BOARD_SIZE)}-${index % BOARD_SIZE}`),
+    )
+  );
+
+  function clearRejection() {
+    clearTimeout(rejectTimer);
+    boardEl.dataset.rejected = 'false';
+  }
+
+  /** Drops selection, animation and rejection when the game is replaced. */
+  function resetInterface() {
+    clearTimeout(moveTimer);
+    boardEl.dataset.animating = 'false';
+    clearRejection();
+    selected = null;
+  }
+
   function render() {
     game.board.forEach((color, index) => {
-      const cell = byTestId(`cell-${Math.floor(index / BOARD_SIZE)}-${index % BOARD_SIZE}`);
-      cell.dataset.color = String(color);
-      cell.dataset.selected = 'false';
+      cells[index].dataset.color = String(color);
+      cells[index].dataset.selected = String(index === selected);
     });
     byTestId('score').textContent = String(game.score);
     byTestId('best-score').textContent = String(Math.max(best, game.score));
@@ -180,9 +208,68 @@ export function startApp(doc, rng) {
   // The confirmation dialog for a game in progress arrives with a later step; for now the button
   // simply starts a new game.
   byTestId('new-game').addEventListener('click', () => {
+    resetInterface();
     game = newGame(rng);
     render();
   });
+
+  function reject() {
+    clearTimeout(rejectTimer);
+    // Re-arming the attribute restarts the CSS animation when the signal is already showing.
+    boardEl.removeAttribute('data-rejected');
+    void boardEl.offsetWidth;
+    boardEl.dataset.rejected = 'true';
+    rejectTimer = setTimeout(clearRejection, REJECT_MS);
+  }
+
+  /** Shows the ball walking along `path`, then the state after the whole computed turn. */
+  function animateMove(/** @type {number[]} */ path) {
+    const color = game.board[path[path.length - 1]];
+    const stepMs = moveStepMs(path.length - 1);
+    boardEl.dataset.animating = 'true';
+    let step = 0;
+    const tick = () => {
+      step += 1;
+      if (step >= path.length) {
+        boardEl.dataset.animating = 'false';
+        render();
+        return;
+      }
+      cells[path[step - 1]].dataset.color = '0';
+      cells[path[step]].dataset.color = String(color);
+      moveTimer = setTimeout(tick, stepMs);
+    };
+    moveTimer = setTimeout(tick, stepMs);
+  }
+
+  function onCellClick(/** @type {number} */ index) {
+    if (boardEl.dataset.animating === 'true' || game.over) return;
+    if (game.board[index] !== 0) {
+      selected = selected === index ? null : index;
+      render();
+      return;
+    }
+    if (selected === null) return;
+    const turn = playTurn(game, selected, index, rng);
+    if (turn === null) {
+      reject();
+      return;
+    }
+    const moved = turn.events[0];
+    const color = game.board[selected];
+    selected = null;
+    clearRejection();
+    // The turn is already computed; the screen catches up after the animation.
+    game = turn.state;
+    if (moved.type === 'moved') {
+      // Hold the ball on its start cell until the first step.
+      cells[moved.path[0]].dataset.selected = 'false';
+      cells[moved.path[0]].dataset.color = String(color);
+      animateMove(moved.path);
+    }
+  }
+
+  cells.forEach((cell, index) => cell.addEventListener('click', () => onCellClick(index)));
 
   render();
   root.dataset.ready = 'true';
@@ -191,6 +278,7 @@ export function startApp(doc, rng) {
     /** @param {unknown} snapshot */
     setState(snapshot) {
       const parsed = gameFromSnapshot(snapshot, rng);
+      resetInterface();
       game = parsed.game;
       if (parsed.best !== undefined) best = parsed.best;
       render();
@@ -201,7 +289,10 @@ export function startApp(doc, rng) {
         score: game.score,
         best: Math.max(best, game.score),
         preview: [...game.preview],
-        selected: null,
+        selected:
+          selected === null
+            ? null
+            : { row: Math.floor(selected / BOARD_SIZE), col: selected % BOARD_SIZE },
         over: game.over,
         record: game.record,
         animating: byTestId('board').dataset.animating === 'true',

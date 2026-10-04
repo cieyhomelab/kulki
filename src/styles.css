@@ -148,3 +148,30 @@ h1 {
   padding: 10px 12px;
   cursor: pointer;
 }
+
+.board[data-rejected='true'] {
+  animation: reject-flash 500ms ease-out;
+  outline: 3px solid #d33;
+  outline-offset: 0;
+}
+
+@keyframes reject-flash {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20%,
+  60% {
+    transform: translateX(-5px);
+  }
+  40%,
+  80% {
+    transform: translateX(5px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board[data-rejected='true'] {
+    animation: none;
+  }
+}
