@@ -51,10 +51,12 @@ export function newGame(rng) {
  * @param {number} from cell index of the ball to move
  * @param {number} to cell index of the empty target
  * @param {import('./rng.js').Rng} rng
+ * @param {number} [best] best score before the turn; when the score exceeds it, `record` becomes
+ *   true and stays true. Without it `record` is left as it was.
  * @returns {{ state: GameState, events: TurnEvent[] } | null} `null` when there is no path
  * @throws {Error} when the game is over, `from` holds no ball or `to` is not empty
  */
-export function playTurn(state, from, to, rng) {
+export function playTurn(state, from, to, rng, best) {
   if (state.over) throw new Error('the game is over');
   if (state.board[from] === undefined || state.board[from] === 0) {
     throw new Error(`cell ${from} holds no ball`);
@@ -110,7 +112,8 @@ export function playTurn(state, from, to, rng) {
       spawning = clearedNow && emptyCells(board).length === board.length;
     }
   }
-  return { state: { board, score, preview, over, record: state.record }, events };
+  const record = state.record || (best !== undefined && score > best);
+  return { state: { board, score, preview, over, record }, events };
 }
 
 /**

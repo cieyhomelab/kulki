@@ -217,4 +217,28 @@ describe('playTurn', () => {
     expect(result.state.over).toBe(true);
     expect(result.state.preview).toEqual([1, 2, 3]);
   });
+
+  describe('record flag', () => {
+    const lineState = () => stateOf(rows({ 0: '1111.....', 1: '....1....' }), [5, 6, 7]);
+
+    it('is set when the score exceeds the best score before the turn', () => {
+      const result = /** @type {any} */ (playTurn(lineState(), 13, 4, zeros(), 5));
+      expect(result.state.record).toBe(true);
+    });
+
+    it('is not set when the best score stays higher or equal', () => {
+      expect(/** @type {any} */ (playTurn(lineState(), 13, 4, zeros(), 50)).state.record).toBe(
+        false,
+      );
+      expect(/** @type {any} */ (playTurn(lineState(), 13, 4, zeros(), 10)).state.record).toBe(
+        false,
+      );
+    });
+
+    it('stays set once true, and is untouched without a best score', () => {
+      const state = { ...lineState(), record: true };
+      expect(/** @type {any} */ (playTurn(state, 13, 4, zeros(), 500)).state.record).toBe(true);
+      expect(/** @type {any} */ (playTurn(lineState(), 13, 4, zeros())).state.record).toBe(false);
+    });
+  });
 });
