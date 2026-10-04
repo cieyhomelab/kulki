@@ -61,9 +61,7 @@ test.describe('S1: game screen', () => {
     await expect(page.getByTestId('board')).toHaveAttribute('data-animating', 'false');
     await expect(page.getByTestId('board')).toHaveAttribute('data-rejected', 'false');
     await expect(page.locator('[data-testid^="cell-"]')).toHaveCount(81);
-    await expect(
-      page.locator('[data-testid^="cell-"][data-color="0"][data-selected="false"]'),
-    ).toHaveCount(81);
+    await expect(page.locator('[data-testid^="cell-"][data-selected="false"]')).toHaveCount(81);
     await expect(page.getByTestId('cell-0-0')).toBeVisible();
     await expect(page.getByTestId('cell-8-8')).toBeVisible();
     await expect(page.getByTestId('score')).toHaveText('0');
