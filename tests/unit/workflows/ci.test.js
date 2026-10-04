@@ -1,20 +1,27 @@
 import { describe, expect, it } from 'vitest';
-import { loadWorkflow, readRepoJson, runCommands } from './helpers/load-workflow.js';
+import { loadWorkflow } from './helpers/load-workflow.js';
 
-describe('CI workflow', () => {
-  it('calls only the scripts from scripts/', async () => {
-    const commands = runCommands(await loadWorkflow('ci.yml')).map(({ run }) => run);
-
-    expect(commands.length).toBeGreaterThan(0);
-    for (const command of commands) {
-      expect(command).toMatch(/^scripts\/[a-z0-9-]+\.sh$/);
-    }
+describe('CI workflow (ci.yml)', () => {
+  it('P2: runs only for pull requests', async () => {
+    expect((await loadWorkflow('ci.yml')).on).toEqual({ pull_request: null });
   });
 
-  it('runs every command of the validation gate', async () => {
-    const commands = runCommands(await loadWorkflow('ci.yml')).map(({ run }) => run);
-    const config = await readRepoJson('.ai/agentic.config.json');
+  it('P2: only calls tests.yml with the PR head commit as version', async () => {
+    const { jobs } = await loadWorkflow('ci.yml');
 
-    expect([...commands].sort()).toEqual([...config.validation.commands].sort());
+    expect(Object.keys(jobs)).toEqual(['tests']);
+    expect(jobs.tests.uses).toBe('./.github/workflows/tests.yml');
+    expect(jobs.tests.with).toEqual({ version: '${{ github.event.pull_request.head.sha }}' });
+    expect(jobs.tests.steps).toBeUndefined();
+  });
+
+  it('has read-only permissions and cancels older runs of the same ref', async () => {
+    const workflow = await loadWorkflow('ci.yml');
+
+    expect(workflow.permissions).toEqual({ contents: 'read' });
+    expect(workflow.concurrency).toEqual({
+      group: 'ci-${{ github.ref }}',
+      'cancel-in-progress': true,
+    });
   });
 });

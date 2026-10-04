@@ -1,0 +1,106 @@
+name: Publikacja
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: publikacja
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  POSTDEPLOY_URL: https://cieyhomelab.github.io/kulki/
+
+jobs:
+  tests:
+    uses: ./.github/workflows/tests.yml
+    with:
+      version: ${{ github.sha }}
+
+  gate:
+    needs: tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      publish: ${{ steps.gate.outputs.publish }}
+      deadline: ${{ steps.gate.outputs.deadline }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - id: gate
+        run: node tools/publish-gate.js
+
+  deploy:
+    needs: [tests, gate]
+    if: needs.gate.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v8
+        with:
+          name: index-html
+          path: artifact
+      - run: node tools/pages-package.js artifact/index.html site
+        env:
+          EXPECTED_SHA256: ${{ needs.tests.outputs.sha256 }}
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v5
+
+  verify:
+    needs: [tests, gate, deploy]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - run: scripts/test-e2e.sh --project postdeploy
+        env:
+          E2E_RUN_ID: verify-${{ github.run_id }}-${{ github.run_attempt }}
+          KULKI_VERSION: ${{ github.sha }}
+          POSTDEPLOY_VERSION: ${{ github.sha }}
+          POSTDEPLOY_SHA256: ${{ needs.tests.outputs.sha256 }}
+          POSTDEPLOY_DEADLINE: ${{ needs.gate.outputs.deadline }}
+      - uses: actions/upload-artifact@v5
+        if: failure()
+        with:
+          name: verify-test-results
+          path: test-results/
+          if-no-files-found: ignore
+
+  result:
+    needs: [tests, gate, deploy, verify]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - run: node tools/publication-result.js
+        env:
+          GATE_RESULT: ${{ needs.gate.result }}
+          DEPLOY_RESULT: ${{ needs.deploy.result }}
+          VERIFY_RESULT: ${{ needs.verify.result }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

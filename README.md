@@ -8,6 +8,10 @@ Przeglądarkowa gra logiczna dla jednego gracza, inspirowana Color Lines / Kulki
 
 ## Jak zagrać
 
+Gra jest dostępna pod adresem https://cieyhomelab.github.io/kulki/. Po każdej zmianie w `main` z zielonymi testami nowa wersja trafia tam automatycznie (workflow „Publikacja”).
+
+Albo zbuduj ją sam:
+
 ```bash
 scripts/build.sh          # tworzy dist/index.html
 ```

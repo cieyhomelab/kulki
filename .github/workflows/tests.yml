@@ -1,0 +1,62 @@
+name: Testy
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Pełny identyfikator commita wpisywany do pliku gry (KULKI_VERSION)
+        type: string
+        required: true
+    outputs:
+      sha256:
+        description: Suma SHA-256 zbudowanego pliku gry
+        value: ${{ jobs.checks.outputs.sha256 }}
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Lint, tests, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      KULKI_VERSION: ${{ inputs.version }}
+    outputs:
+      sha256: ${{ steps.build.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: scripts/lint.sh
+      - run: scripts/test-unit.sh
+      - run: scripts/test-integration.sh
+      - id: build
+        run: scripts/build.sh
+      - uses: actions/upload-artifact@v5
+        with:
+          name: index-html
+          path: dist/index.html
+          if-no-files-found: error
+
+  e2e:
+    name: E2E
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - run: scripts/test-e2e.sh
+        env:
+          E2E_RUN_ID: tests-${{ github.run_id }}-${{ github.run_attempt }}
+          KULKI_VERSION: ${{ inputs.version }}
+          POSTDEPLOY_VERSION: ${{ inputs.version }}
+          POSTDEPLOY_SHA256: ${{ needs.checks.outputs.sha256 }}
+      - uses: actions/upload-artifact@v5
+        if: failure()
+        with:
+          name: e2e-test-results
+          path: test-results/
+          if-no-files-found: ignore
