@@ -1,6 +1,6 @@
 # Chronione kontrakty
 
-Powierzchnie, od których zależą gracze, testy albo inni agenci. Zmiana którejkolwiek wymaga ścieżki opisanej przy niej. Pełne definicje są w sekcjach technicznych [specyfikacji](.ai/specs/2026-10-04-gra-w-kulki.md); tu jest lista i zasady zmian.
+Powierzchnie, od których zależą gracze, testy albo inni agenci. Zmiana którejkolwiek wymaga ścieżki opisanej przy niej. Pełne definicje są w sekcjach technicznych [specyfikacji gry](.ai/specs/2026-10-04-gra-w-kulki.md) i [specyfikacji publikacji](.ai/specs/2026-10-04-publikacja-na-github-pages.md); tu jest lista i zasady zmian.
 
 Projekt nie ma API sieciowego, bazy danych, CLI ani publikowanego pakietu.
 
@@ -30,7 +30,7 @@ Wartości `data-testid` oraz atrybuty stanu (`data-color`, `data-selected`, `dat
 Nazwy i zachowanie `scripts/lint.sh`, `test-unit.sh`, `test-integration.sh`, `test-e2e.sh`, `build.sh`; kontrakt E2E z `AGENTS.md` (projekt `e2e-${E2E_RUN_ID}`, brak portów na hoście, sprzątanie, plik sekretów).
 
 - **Zmiana łamiąca:** zmiana nazwy skryptu, kodu wyjścia, nazwy projektu Compose, publikacja portu, rezygnacja ze sprzątania.
-- **Ścieżka:** zmiana w jednym PR razem z `.ai/agentic.config.json`, `SDLC.md`, `AGENTS.md` i `.github/workflows/ci.yml`.
+- **Ścieżka:** zmiana w jednym PR razem z `.ai/agentic.config.json`, `SDLC.md`, `AGENTS.md` i plikami w `.github/workflows/`.
 
 ## 5. Postać produktu
 
@@ -38,3 +38,10 @@ Jeden plik `dist/index.html`, działający z `file://` i z hostingu statycznego,
 
 - **Zmiana łamiąca:** drugi plik, zależność uruchomieniowa, zasób z sieci, wymaganie serwera.
 - **Ścieżka:** brak. To wymaganie właściciela; zmiana wymaga nowej specyfikacji.
+
+## 6. Publikacja
+
+Adres gry `https://cieyhomelab.github.io/kulki/`; znacznik `<meta name="kulki-version" content="…">` w pliku gry (pełny identyfikator commita albo `dev`); historia publikacji: przebiegi workflow `publish.yml` („Publikacja”) i identyfikatory jego zadań `checks`, `e2e`, `gate`, `deploy`, `verify`, `result`, z których wyznaczany jest wynik `udana`, `nieudana` albo `pominięta`.
+
+- **Zmiana łamiąca:** zmiana nazwy albo położenia znacznika wersji lub formatu jego wartości; zmiana nazwy pliku workflow albo identyfikatora zadania; zmiana reguły wyznaczania wyniku; zmiana adresu gry.
+- **Ścieżka:** znacznik, workflow i reguła wyniku: zmiana w jednym PR razem z sekcjami technicznymi specyfikacji publikacji, testami w `tests/unit/workflows/` i `tests/postdeploy/`. Adres gry: brak ścieżki, to wymaganie właściciela; zmiana wymaga nowej specyfikacji. Uwaga: zapis gracza w `localStorage` jest przypisany do adresu, więc zmiana adresu oznacza dla graczy utratę rozgrywki i najlepszego wyniku.

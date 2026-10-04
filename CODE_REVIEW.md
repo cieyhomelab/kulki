@@ -1,6 +1,6 @@
 # Reguły przeglądu kodu
 
-Reguły specyficzne dla tego repozytorium. Uzupełniają wbudowaną checklistę `om-code-review`; nie zastępują jej. Kontekst: [AGENTS.md](AGENTS.md), [specyfikacja](.ai/specs/2026-10-04-gra-w-kulki.md), [ADR 0001](docs/adr/0001-stos-technologiczny.md).
+Reguły specyficzne dla tego repozytorium. Uzupełniają wbudowaną checklistę `om-code-review`; nie zastępują jej. Kontekst: [AGENTS.md](AGENTS.md), [specyfikacja gry](.ai/specs/2026-10-04-gra-w-kulki.md), [specyfikacja publikacji](.ai/specs/2026-10-04-publikacja-na-github-pages.md), [ADR 0001](docs/adr/0001-stos-technologiczny.md), [ADR 0002](docs/adr/0002-publikacja-na-github-pages.md).
 
 ## Priorytety
 
@@ -74,9 +74,24 @@ Reguły specyficzne dla tego repozytorium. Uzupełniają wbudowaną checklistę 
 - [ ] Wersja `@playwright/test` jest dokładna (bez `^`), bo wyznacza tag obrazu.
 - [ ] Żadnych sekretów, tokenów ani plików `.env` w diffie.
 
+### Publikacja (workflow, wersja, sprawdzenie po publikacji)
+
+- [ ] Publikację wyzwala wyłącznie `push` do `main` i `workflow_dispatch`; `ci.yml` (PR) nie ma zadań ani uprawnień związanych z Pages.
+- [ ] `permissions` na poziomie workflow to `contents: read`; `pages: write` i `id-token: write` ma tylko zadanie `deploy`. Żadnego `contents: write`, tokenów osobistych ani sekretów repozytorium.
+- [ ] Zadanie `deploy` zależy przez `needs` od testów i bramki wersji i nie ma `if: always()`, `!cancelled()` ani `continue-on-error`; żaden krok testów nie ma `continue-on-error`.
+- [ ] `concurrency` workflow „Publikacja” ma stałą grupę i `cancel-in-progress: false`; bramka wersji sprawdza gałąź `main` i to, że commit jest jej czubkiem.
+- [ ] Publikowana paczka powstaje z artefaktu zbudowanego w tym samym przebiegu i zawiera dokładnie `index.html`; nie jest budowana drugi raz w zadaniu `deploy`.
+- [ ] Akcje spoza `actions/*` nie są używane; każda akcja jest przypięta co najmniej do wersji głównej.
+- [ ] Logika dłuższa niż jedno polecenie jest w `tools/` albo `scripts/` i ma test jednostkowy, a nie siedzi w `run:` jako skrypt wpisany w YAML.
+- [ ] Każda zmieniona reguła konfiguracji ma test w `tests/unit/workflows/`; identyfikatory zadań `checks`, `e2e`, `gate`, `deploy`, `verify`, `result` się nie zmieniły (kontrakt historii publikacji).
+- [ ] Budowanie jest powtarzalne: nie zależy od czasu, ścieżki bezwzględnej, plików spoza `src/` i `tools/` ani od środowiska poza `KULKI_VERSION`.
+- [ ] Identyfikator wersji jest tylko w `<meta name="kulki-version">`; nie ma go w tekście widocznym na ekranie, a `src/` go nie czyta.
+- [ ] Testy w `tests/postdeploy/` przechodzą w trybie atrapy, używają adresów względnych, pomijają pamięć podręczną i niczego nie zapisują poza `localStorage` przeglądarki; test tylko dla żywego adresu jest pominięty warunkiem `isLive`, nie usunięty.
+- [ ] Ponawianie ma górną granicę czasu wziętą ze zmiennej (15 minut od końca testów), a nie stałe `sleep`.
+
 ## Ważność uwag
 
-- **Blocker:** złamane kryterium akceptacji; produkt przestaje być jednym plikiem albo sięga do sieci; utrata albo błędna interpretacja zapisanych danych gracza; czerwona bramka walidacji; sekret w repozytorium; wyłączony test.
+- **Blocker:** złamane kryterium akceptacji; produkt przestaje być jednym plikiem albo sięga do sieci; publikacja możliwa bez zielonych testów, spoza `main` albo z plikiem innym niż `index.html`; uprawnienia do zapisu szersze niż opisane wyżej; utrata albo błędna interpretacja zapisanych danych gracza; czerwona bramka walidacji; sekret w repozytorium; wyłączony test.
 - **Major:** brak testu dla zmienionego zachowania; złamana granica modułów; zmiana chronionego kontraktu bez opisanej ścieżki; test niedeterministyczny albo ze stałym opóźnieniem; tekst nie po polsku.
 - **Minor:** nazewnictwo, brak JSDoc, powtórzenia, czytelność.
 
