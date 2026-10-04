@@ -19,3 +19,5 @@ services:
       CI: 'true'
       E2E_BASE_URL: http://web
       E2E_FILE_URL: file:///work/dist/index.html
+      # Empty means mock mode: the post-deploy suite checks `web` instead of the hosting.
+      POSTDEPLOY_URL: ${POSTDEPLOY_URL:-}

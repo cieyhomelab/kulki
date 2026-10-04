@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { targetUrl } from '../postdeploy/helpers/target.js';
 
 // Chromium covers Chrome and Edge, WebKit covers Safari.
 export default defineConfig({
@@ -27,6 +28,17 @@ export default defineConfig({
     {
       name: 'webkit',
       use: { ...devices['Desktop Safari'], viewport: { width: 1024, height: 768 } },
+    },
+    {
+      // Checks run after each publication; here they run against `web` (mock mode)
+      // unless POSTDEPLOY_URL points at the published game.
+      name: 'postdeploy',
+      testDir: '../postdeploy',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1024, height: 768 },
+        baseURL: targetUrl,
+      },
     },
   ],
 });
