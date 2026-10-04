@@ -203,15 +203,79 @@ export function startApp(doc, rng) {
     app.querySelectorAll('[data-testid="preview-ball"]').forEach((ball, i) => {
       /** @type {HTMLElement} */ (ball).dataset.color = String(game.preview[i]);
     });
+    syncGameOver();
   }
 
-  // The confirmation dialog for a game in progress arrives with a later step; for now the button
-  // simply starts a new game.
-  byTestId('new-game').addEventListener('click', () => {
+  /** Removes the dialog with the given test id, if shown. */
+  function closeDialog(/** @type {string} */ testId) {
+    app.querySelector(`[data-testid="${testId}"]`)?.remove();
+  }
+
+  function startNewGame() {
+    closeDialog('confirm-dialog');
     resetInterface();
     best = Math.max(best, game.score);
     game = newGame(rng);
     render();
+  }
+
+  /** Shows the end-of-game message once, and removes it when the game is no longer over. */
+  function syncGameOver() {
+    const shown = app.querySelector('[data-testid="game-over"]');
+    if (!game.over) {
+      shown?.remove();
+      return;
+    }
+    if (shown) {
+      byTestId('game-over-score').textContent = String(game.score);
+      return;
+    }
+    const panel = el(doc, 'div', { class: 'dialog', role: 'alert', 'data-testid': 'game-over' });
+    const newGameButton = el(
+      doc,
+      'button',
+      { type: 'button', class: 'button', 'data-testid': 'game-over-new-game' },
+      TEXTS.gameOverNewGame,
+    );
+    newGameButton.addEventListener('click', startNewGame);
+    panel.append(
+      el(doc, 'strong', {}, TEXTS.gameOverTitle),
+      el(doc, 'span', {}, TEXTS.gameOverScore),
+      el(doc, 'span', { 'data-testid': 'game-over-score' }, String(game.score)),
+      newGameButton,
+    );
+    main.after(panel);
+  }
+
+  function showConfirm() {
+    if (app.querySelector('[data-testid="confirm-dialog"]')) return;
+    const panel = el(doc, 'div', {
+      class: 'dialog',
+      role: 'alertdialog',
+      'data-testid': 'confirm-dialog',
+    });
+    const yes = el(
+      doc,
+      'button',
+      { type: 'button', class: 'button', 'data-testid': 'confirm-yes' },
+      TEXTS.confirmYes,
+    );
+    const no = el(
+      doc,
+      'button',
+      { type: 'button', class: 'button', 'data-testid': 'confirm-no' },
+      TEXTS.confirmNo,
+    );
+    yes.addEventListener('click', startNewGame);
+    no.addEventListener('click', () => closeDialog('confirm-dialog'));
+    panel.append(el(doc, 'span', {}, TEXTS.confirmQuestion), yes, no);
+    main.after(panel);
+  }
+
+  byTestId('new-game').addEventListener('click', () => {
+    // A finished game has nothing left to lose.
+    if (game.over) startNewGame();
+    else showConfirm();
   });
 
   function reject() {
@@ -310,6 +374,7 @@ export function startApp(doc, rng) {
 
   function onCellClick(/** @type {number} */ index) {
     if (boardEl.dataset.animating === 'true' || game.over) return;
+    if (app.querySelector('[data-testid="confirm-dialog"]')) return;
     if (game.board[index] !== 0) {
       selected = selected === index ? null : index;
       render();
@@ -343,6 +408,7 @@ export function startApp(doc, rng) {
     /** @param {unknown} snapshot */
     setState(snapshot) {
       const parsed = gameFromSnapshot(snapshot, rng);
+      closeDialog('confirm-dialog');
       resetInterface();
       game = parsed.game;
       if (parsed.best !== undefined) best = parsed.best;

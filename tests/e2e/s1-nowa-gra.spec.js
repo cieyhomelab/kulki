@@ -47,6 +47,7 @@ test.describe('S1: new game', () => {
       queue,
     );
     await page.getByTestId('new-game').click();
+    await page.getByTestId('confirm-yes').click();
 
     await expect
       .poll(() => page.evaluate(() => /** @type {any} */ (globalThis).__kulki.getState().board))
@@ -95,6 +96,7 @@ test.describe('S1: new game', () => {
       queue,
     );
     await page.getByTestId('new-game').click();
+    await page.getByTestId('confirm-yes').click();
 
     await expect
       .poll(() => page.evaluate(() => /** @type {any} */ (globalThis).__kulki.getState().board[8]))
@@ -111,6 +113,8 @@ test.describe('S1: new game', () => {
         seed,
       );
       await page.getByTestId('new-game').click();
+      await page.getByTestId('confirm-yes').click();
+      await page.getByTestId('confirm-yes').click();
       const board = await page.evaluate(
         () => /** @type {any} */ (globalThis).__kulki.getState().board,
       );

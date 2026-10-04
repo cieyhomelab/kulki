@@ -8,4 +8,10 @@ export const TEXTS = Object.freeze({
   soundOn: 'Dźwięk: włączony',
   soundOff: 'Dźwięk: wyciszony',
   boardLabel: 'Plansza do gry',
+  confirmQuestion: 'Rozpocząć nową grę? Obecna rozgrywka zostanie utracona.',
+  confirmYes: 'Tak',
+  confirmNo: 'Nie',
+  gameOverTitle: 'Koniec gry',
+  gameOverScore: 'Twój wynik:',
+  gameOverNewGame: 'Nowa gra',
 });

@@ -175,3 +175,18 @@ h1 {
     animation: none;
   }
 }
+
+.dialog {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 2px solid var(--cell-border);
+  border-radius: 6px;
+  background: var(--board-bg);
+  color: #1b1f27;
+}
+
+.dialog .button {
+  margin-left: 4px;
+}
