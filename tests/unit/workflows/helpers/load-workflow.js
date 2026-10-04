@@ -15,7 +15,7 @@ const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../.
  * Reads and parses a GitHub Actions workflow from .github/workflows.
  *
  * @param {string} fileName e.g. `ci.yml`
- * @returns {Promise<Workflow>}
+ * @returns {Promise<any>} the parsed YAML; its shape varies per workflow, so tests read it untyped
  */
 export async function loadWorkflow(fileName) {
   const file = path.join(rootDir, '.github', 'workflows', fileName);
@@ -25,7 +25,7 @@ export async function loadWorkflow(fileName) {
 /**
  * Lists the shell commands of every `run` step, in file order.
  *
- * @param {Workflow} workflow
+ * @param {{ jobs: Record<string, Job> }} workflow
  * @returns {{ job: string, run: string }[]}
  */
 export function runCommands(workflow) {

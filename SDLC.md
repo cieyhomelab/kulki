@@ -109,6 +109,10 @@ Every PR passes the full validation gate before review sign-off, in this order:
 
 Any non-zero exit fails the gate and blocks the PR. The implementing skills run the gate before opening a PR, and `om-check-and-commit` runs it before pushing a hand-worked branch. The command list lives in `.ai/agentic.config.json`; when it changes, update it there and in this section together.
 
+## Publication
+
+A change merged to `main` is published automatically to https://cieyhomelab.github.io/kulki/ by `.github/workflows/publish.yml` ("Publikacja"): the validation gate (`tests.yml`) → version gate → deploy → post-deploy check → result. Red tests never reach players. PRs run only the tests (`ci.yml`, which calls `tests.yml`) and have no Pages permissions. Details: `.ai/specs/2026-10-04-publikacja-na-github-pages.md`, ADR 0002.
+
 ## Amending this process
 
 This document and `.ai/agentic.config.json` describe the same process: change them together, and re-run the `om-setup-agent-pipeline` skill when the toolchain or label taxonomy changes. Per-skill deviations — extra review rules, a different PR body template, an added gate step — belong in a repo-local skill of the same name at `.ai/skills/<skill-name>/SKILL.md`, which takes precedence over the installed skill (and can `@`-import or reference it to extend rather than replace it); local rules win, but a repo-local skill cannot grant what the installed skill's safety rules forbid.

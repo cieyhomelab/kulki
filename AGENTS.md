@@ -69,7 +69,7 @@ Granice modułów:
 | interfejsu testowego | „Kontrakty API” w specyfikacji, `src/test-api.js` | kontrakt chroniony, patrz `BACKWARD_COMPATIBILITY.md` |
 | budowania i jednego pliku | `tools/build.js`, `tools/inline.js`, `tests/integration/single-file.test.js` | wynik to jeden plik bez odwołań na zewnątrz |
 | testów E2E i Compose | `scripts/test-e2e.sh`, `compose.e2e.yml`, `Dockerfile`, `tests/e2e/playwright.config.js` | kontrakt E2E poniżej; bez stałych portów |
-| CI | `.github/workflows/ci.yml` | CI woła tylko skrypty ze `scripts/` |
+| CI | `.github/workflows/tests.yml` (wspólne testy), `ci.yml` (PR) | testy żyją w `tests.yml`; `ci.yml` tylko je woła; kroki wołają tylko skrypty ze `scripts/` |
 | publikacji, workflow „Publikacja”, historii publikacji | specyfikacja publikacji (sekcje techniczne), ADR 0002, `.github/workflows/` | każda reguła konfiguracji ma test w `tests/unit/workflows/`; uprawnienia do Pages tylko w zadaniu `deploy`; logika w `tools/` albo `scripts/`, nie w YAML-u |
 | sprawdzenia po publikacji | scenariusze P1–P4, `tests/postdeploy/`, `tests/postdeploy/helpers/target.js` | test przechodzi w trybie atrapy; adresy względne (`./`); test tylko dla żywego adresu ma `test.skip(!isLive, …)` |
 | identyfikatora wersji w pliku gry | „Dane” w specyfikacji publikacji, `tools/build.js`, `tools/inline.js` | `KULKI_VERSION` albo `dev`; niewidoczny na ekranie; budowanie daje ten sam plik w każdym środowisku |

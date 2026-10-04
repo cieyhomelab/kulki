@@ -27,7 +27,7 @@ Wartości `data-testid` oraz atrybuty stanu (`data-color`, `data-selected`, `dat
 
 ## 4. Skrypty i bramka walidacji
 
-Nazwy i zachowanie `scripts/lint.sh`, `test-unit.sh`, `test-integration.sh`, `test-e2e.sh`, `build.sh`; kontrakt E2E z `AGENTS.md` (projekt `e2e-${E2E_RUN_ID}`, brak portów na hoście, sprzątanie, plik sekretów).
+Nazwy i zachowanie `scripts/lint.sh`, `test-unit.sh`, `test-integration.sh`, `test-e2e.sh`, `build.sh`; kontrakt E2E z `AGENTS.md` (projekt `e2e-${E2E_RUN_ID}`, brak portów na hoście, sprzątanie, plik sekretów). Bramkę w CI wykonuje wielokrotnego użytku `.github/workflows/tests.yml` (pięć skryptów, wejście `version`, wyjście `sha256`), wołany przez `ci.yml` i `publish.yml`.
 
 - **Zmiana łamiąca:** zmiana nazwy skryptu, kodu wyjścia, nazwy projektu Compose, publikacja portu, rezygnacja ze sprzątania.
 - **Ścieżka:** zmiana w jednym PR razem z `.ai/agentic.config.json`, `SDLC.md`, `AGENTS.md` i plikami w `.github/workflows/`.
