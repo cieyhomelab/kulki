@@ -1,3 +1,5 @@
+import { boardToRows } from '../game/board.js';
+import { gameFromSnapshot, newGame } from '../game/game.js';
 import { TEXTS } from './texts.js';
 
 const BOARD_SIZE = 9;
@@ -76,12 +78,11 @@ function buildPreview(doc) {
   const preview = el(doc, 'div', { class: 'preview', 'data-testid': 'preview' });
   const balls = el(doc, 'div', { class: 'preview-balls' });
   for (let i = 0; i < PREVIEW_SIZE; i += 1) {
-    // Placeholder colors until the game logic is wired in.
     balls.append(
       el(doc, 'span', {
         class: 'preview-ball',
         'data-testid': 'preview-ball',
-        'data-color': String(i + 1),
+        'data-color': '1',
       }),
     );
   }
@@ -114,20 +115,21 @@ function buildSoundToggle(doc) {
 }
 
 /**
- * Boots the application inside the given document.
+ * Boots the application inside the given document, starts a new game and draws it.
  *
- * Renders the static game screen and sets `data-ready="true"` on the root
- * element once the UI is usable, so tests can wait for the app instead of
- * guessing with timeouts.
+ * Sets `data-ready="true"` on the root element once the UI is usable, so tests can wait for the
+ * app instead of guessing with timeouts.
  *
  * @param {Document} doc
- * @returns {HTMLElement} the application root element
+ * @param {import('../game/rng.js').Rng} rng randomness source for new games
+ * @returns {AppController}
  */
-export function startApp(doc) {
+export function startApp(doc, rng) {
   const root = doc.getElementById('app');
   if (!root) {
     throw new Error('Application root element #app not found');
   }
+  const app = root;
 
   const header = el(doc, 'header', { class: 'topbar' });
   header.append(
@@ -152,6 +154,66 @@ export function startApp(doc) {
   main.append(buildBoard(doc), side);
 
   root.replaceChildren(header, main);
+
+  /** @type {import('../game/game.js').GameState} */
+  let game = newGame(rng);
+  // The best score lives in memory only until stage 2 adds persistence.
+  let best = 0;
+
+  /** @param {string} testId */
+  const byTestId = (testId) =>
+    /** @type {HTMLElement} */ (root.querySelector(`[data-testid="${testId}"]`));
+
+  function render() {
+    game.board.forEach((color, index) => {
+      const cell = byTestId(`cell-${Math.floor(index / BOARD_SIZE)}-${index % BOARD_SIZE}`);
+      cell.dataset.color = String(color);
+      cell.dataset.selected = 'false';
+    });
+    byTestId('score').textContent = String(game.score);
+    byTestId('best-score').textContent = String(Math.max(best, game.score));
+    app.querySelectorAll('[data-testid="preview-ball"]').forEach((ball, i) => {
+      /** @type {HTMLElement} */ (ball).dataset.color = String(game.preview[i]);
+    });
+  }
+
+  // The confirmation dialog for a game in progress arrives with a later step; for now the button
+  // simply starts a new game.
+  byTestId('new-game').addEventListener('click', () => {
+    game = newGame(rng);
+    render();
+  });
+
+  render();
   root.dataset.ready = 'true';
-  return root;
+
+  return {
+    /** @param {unknown} snapshot */
+    setState(snapshot) {
+      const parsed = gameFromSnapshot(snapshot, rng);
+      game = parsed.game;
+      if (parsed.best !== undefined) best = parsed.best;
+      render();
+    },
+    getState() {
+      return {
+        board: boardToRows(game.board),
+        score: game.score,
+        best: Math.max(best, game.score),
+        preview: [...game.preview],
+        selected: null,
+        over: game.over,
+        record: game.record,
+        animating: byTestId('board').dataset.animating === 'true',
+        rejected: byTestId('board').dataset.rejected === 'true',
+        soundOn: byTestId('sound-toggle').getAttribute('aria-pressed') === 'true',
+      };
+    },
+  };
 }
+
+/**
+ * @typedef {object} AppController
+ * @property {(snapshot: unknown) => void} setState replaces the game, see `window.__kulki`
+ * @property {() => Record<string, unknown>} getState snapshot of what the screen shows
+ */
