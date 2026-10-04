@@ -92,7 +92,7 @@ Bramka walidacji to te pięć skryptów w tej kolejności. Dodatkowe argumenty t
 
 ### Kontrakt `scripts/test-e2e.sh`
 
-- Stawia własny stos Compose o nazwie projektu `e2e-${E2E_RUN_ID}`. Bez tej zmiennej identyfikator jest losowy. Kilka przebiegów może działać jednocześnie; przy pracy równoległej ustaw `E2E_RUN_ID` na identyfikator zadania.
+- Stawia własny stos Compose o nazwie projektu `e2e-${E2E_RUN_ID}`. Bez tej zmiennej identyfikator jest losowy. Kilka przebiegów może działać jednocześnie; przy pracy równoległej ustaw `E2E_RUN_ID` na identyfikator zadania i ogranicz liczbę procesów testów: `scripts/test-e2e.sh --workers 2`. Domyślnie każdy przebieg bierze połowę rdzeni maszyny, więc dwa pełne przebiegi naraz ją przeciążają i testy zależne od czasu animacji (S2, S3) zaczynają losowo padać.
 - Nie publikuje portów na hoście. Testy działają w kontenerze `e2e` w sieci Compose i łączą się z grą pod `http://web` (`E2E_BASE_URL`). Ten sam plik jest też dostępny z dysku pod `E2E_FILE_URL` (`file://`).
 - Zawsze sprząta: `docker compose down -v` w `trap`, także przy błędzie i przerwaniu. Po przebiegu nie zostaje kontener, sieć, wolumen ani obraz z prefiksem `e2e-`.
 - Przy niepowodzeniu kopiuje ślady i zrzuty ekranu Playwrighta do `test-results/e2e-<id>/`.
