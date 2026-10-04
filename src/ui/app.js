@@ -1,6 +1,7 @@
 import { createSounds } from '../audio/sounds.js';
 import { boardToRows } from '../game/board.js';
 import { gameFromSnapshot, newGame, playTurn } from '../game/game.js';
+import { readGame, writeGame } from '../storage/game-save.js';
 import { readBestScore, writeBestScore } from '../storage/best-score.js';
 import { loadSoundOn, saveSoundOn } from '../storage/sound-setting.js';
 import { TEXTS } from './texts.js';
@@ -165,7 +166,7 @@ export function startApp(doc, rng) {
   root.replaceChildren(header, main);
 
   /** @type {import('../game/game.js').GameState} */
-  let game = newGame(rng);
+  let game = readGame() ?? newGame(rng);
   let best = readBestScore();
 
   /** Raises the best score to at least `value` and remembers it. */
@@ -230,6 +231,7 @@ export function startApp(doc, rng) {
     resetInterface();
     raiseBest(game.score);
     game = newGame(rng);
+    writeGame(game);
     render();
   }
 
@@ -414,6 +416,9 @@ export function startApp(doc, rng) {
     clearRejection();
     // The turn is already computed; the screen catches up while the events play.
     game = turn.state;
+    // Saved right after the turn is computed, before the animation, so a reload mid-animation
+    // resumes the finished turn.
+    writeGame(game);
     raiseBest(game.score);
     // Hold the ball on its start cell until the first step.
     cells[start].dataset.selected = 'false';
@@ -422,6 +427,7 @@ export function startApp(doc, rng) {
 
   cells.forEach((cell, index) => cell.addEventListener('click', () => onCellClick(index)));
 
+  writeGame(game);
   render();
   root.dataset.ready = 'true';
 
@@ -436,6 +442,7 @@ export function startApp(doc, rng) {
         best = parsed.best;
         writeBestScore(best);
       }
+      writeGame(game);
       render();
     },
     getSoundLog: () => sounds.getLog(),

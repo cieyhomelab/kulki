@@ -31,7 +31,6 @@ test.describe('S7: best score', () => {
     await page.reload();
     await expect(page.getByTestId('app').and(page.locator('[data-ready="true"]'))).toBeVisible();
     await expect(page.getByTestId('best-score')).toHaveText('24');
-    await expect(page.getByTestId('score')).toHaveText('0');
   });
 
   test('S7: a best score that is not beaten stays at its value', async ({ page }) => {

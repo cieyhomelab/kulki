@@ -193,3 +193,38 @@ describe('move animation', () => {
     expect(delays.reduce((sum, ms) => sum + ms, 0)).toBeLessThanOrEqual(600);
   });
 });
+
+describe('saved game', () => {
+  it('resumes a saved game on start', async () => {
+    const board = ['.........', '..3......', ...Array(7).fill('.........')];
+    const save = { board, score: 9, preview: [4, 1, 6], over: false, record: false };
+    const { document } = (
+      await loadGame({
+        beforeScripts: (window) =>
+          window.localStorage.setItem('kulki.game.v1', JSON.stringify(save)),
+      })
+    ).window;
+    const byId = (/** @type {string} */ id) => document.querySelector(`[data-testid="${id}"]`);
+    expect(byId('score')?.textContent).toBe('9');
+    expect(byId('cell-1-2')?.getAttribute('data-color')).toBe('3');
+    expect(
+      document.querySelectorAll('[data-testid^="cell-"][data-color]:not([data-color="0"])'),
+    ).toHaveLength(1);
+  });
+
+  it('plays normally when localStorage is unavailable', async () => {
+    const { document } = (
+      await loadGame({
+        beforeScripts: (window) =>
+          Object.defineProperty(window, 'localStorage', {
+            get() {
+              throw new Error('SecurityError');
+            },
+          }),
+      })
+    ).window;
+    expect(document.getElementById('app')?.dataset.ready).toBe('true');
+    expect(document.querySelector('[role="alert"]')).toBeNull();
+    expect(document.querySelector('[data-testid="score"]')?.textContent).toBe('0');
+  });
+});
