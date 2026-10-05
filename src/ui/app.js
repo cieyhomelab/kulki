@@ -41,9 +41,9 @@ function el(doc, tag, attrs = {}, text) {
  * @returns {HTMLElement}
  */
 function statBox(doc, label, testId) {
-  const box = el(doc, 'div', { class: 'stat' });
+  const box = el(doc, 'div', { class: 'stat', 'data-testid': `${testId}-panel` });
   box.append(
-    el(doc, 'span', { class: 'stat-label' }, label),
+    el(doc, 'span', { class: 'stat-label', 'data-testid': `${testId}-label` }, label),
     el(doc, 'span', { class: 'stat-value', 'data-testid': testId }, '0'),
   );
   return box;
@@ -94,7 +94,10 @@ function buildPreview(doc) {
       }),
     );
   }
-  preview.append(el(doc, 'span', { class: 'stat-label' }, TEXTS.nextBalls), balls);
+  preview.append(
+    el(doc, 'span', { class: 'stat-label', 'data-testid': 'preview-label' }, TEXTS.nextBalls),
+    balls,
+  );
   return preview;
 }
 
@@ -146,7 +149,7 @@ export function startApp(doc, rng) {
 
   const header = el(doc, 'header', { class: 'topbar' });
   header.append(
-    el(doc, 'h1', {}, TEXTS.title),
+    el(doc, 'h1', { 'data-testid': 'title' }, TEXTS.title),
     statBox(doc, TEXTS.score, 'score'),
     statBox(doc, TEXTS.bestScore, 'best-score'),
   );
