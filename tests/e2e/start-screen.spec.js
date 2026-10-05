@@ -5,7 +5,7 @@ test.describe('start screen', () => {
     await page.goto('/');
 
     await expect(page).toHaveTitle('Kulki');
-    await expect(page.getByRole('heading', { name: 'Kulki' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'KULKI' })).toBeVisible();
     await expect(page.getByTestId('app')).toHaveAttribute('data-ready', 'true');
   });
 
@@ -15,7 +15,7 @@ test.describe('start screen', () => {
 
     await page.goto(/** @type {string} */ (fileUrl));
 
-    await expect(page.getByRole('heading', { name: 'Kulki' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'KULKI' })).toBeVisible();
     await expect(page.getByTestId('app')).toHaveAttribute('data-ready', 'true');
   });
 });

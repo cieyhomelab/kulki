@@ -161,7 +161,7 @@ test.describe('S20: convex CRT screen', () => {
     expect(tree).not.toContain('glare');
     const bodyText = (await page.locator('body').innerText()).replace(/\s+/g, ' ').trim();
     expect(bodyText).toBe(
-      'Kulki Wynik 0 Najlepszy wynik 0 Następne kulki Nowa gra Dźwięk: włączony',
+      'KULKI Wynik 0 Najlepszy wynik 0 Następne kulki Nowa gra Dźwięk: włączony',
     );
   });
 

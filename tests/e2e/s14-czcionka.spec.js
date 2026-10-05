@@ -48,7 +48,7 @@ test.describe('S14: game font', () => {
       await expectGameFont(page.getByTestId(id), id);
     }
     // Title, labels and the preview caption have no test id yet; they are found by text.
-    for (const text of ['Kulki', 'Wynik', 'Najlepszy wynik', 'Następne kulki']) {
+    for (const text of ['KULKI', 'Wynik', 'Najlepszy wynik', 'Następne kulki']) {
       await expectGameFont(page.getByText(text, { exact: true }).first(), text);
     }
   });

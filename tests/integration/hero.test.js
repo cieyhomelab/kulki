@@ -12,7 +12,7 @@ describe('hero block', () => {
     expect(hero?.parentElement).toBe(app);
     expect(title?.tagName).toBe('H1');
     expect(title?.parentElement).toBe(hero);
-    expect(title?.textContent).toBe('Kulki');
+    expect(title?.textContent).toBe('KULKI');
   });
 });
 

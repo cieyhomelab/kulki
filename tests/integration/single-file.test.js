@@ -20,7 +20,7 @@ describe('built index.html', () => {
     const { document } = (await loadGame()).window;
 
     expect(document.documentElement.lang).toBe('pl');
-    expect(document.querySelector('h1')?.textContent).toBe('Kulki');
+    expect(document.querySelector('h1')?.textContent).toBe('KULKI');
     expect(document.getElementById('app')?.dataset.ready).toBe('true');
   });
 });

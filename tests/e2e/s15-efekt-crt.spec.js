@@ -102,7 +102,7 @@ test.describe('S15: CRT effect', () => {
     await expect(crt(page)).toHaveAttribute('aria-hidden', 'true');
     const bodyText = (await page.locator('body').innerText()).replace(/\s+/g, ' ').trim();
     expect(bodyText).toBe(
-      'Kulki Wynik 0 Najlepszy wynik 0 Następne kulki Nowa gra Dźwięk: włączony',
+      'KULKI Wynik 0 Najlepszy wynik 0 Następne kulki Nowa gra Dźwięk: włączony',
     );
     const tree = await page.locator('body').ariaSnapshot();
     expect(tree).not.toContain('crt');
