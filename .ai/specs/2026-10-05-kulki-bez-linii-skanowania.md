@@ -178,4 +178,146 @@ Poniższe decyzje podjął analityk, wybierając opcję najprostszą i najłatwi
 
 ## Sekcje techniczne
 
-> Uzupełnia architekt po zatwierdzeniu specyfikacji: architektura, model danych, kontrakty API, plan implementacji.
+Decyzje i ich uzasadnienie: [ADR 0005](../../docs/adr/0005-kulki-bez-linii-skanowania.md). Stos się nie zmienia ([ADR 0001](../../docs/adr/0001-stos-technologiczny.md)); nie dochodzi zależność, usługa ani krok budowania. Zasady pracy w repozytorium: [AGENTS.md](../../AGENTS.md). Ten rozdział rozszerza sekcje techniczne [specyfikacji ekranu kineskopu](2026-10-05-ekran-kineskopu-neonowy-tytul-i-nowy-uklad.md), [specyfikacji wyglądu retro](2026-10-05-podskakujaca-kulka-i-wyglad-retro.md) i [specyfikacji gry](2026-10-04-gra-w-kulki.md); wszystko, czego tu nie zmieniono, obowiązuje dalej.
+
+### Architektura
+
+Zmiana dotyczy wyłącznie szablonu i arkusza stylów: `src/index.html` (jeden nowy element) i `src/styles.css` (blok „efekt CRT”, reguła kulek, animacja odmowy ruchu, cztery nowe zmienne). Nie dochodzi kod JavaScript. `src/ui/`, `src/game/`, `src/storage/`, `src/audio/`, `src/test-api.js`, `tools/`, Compose, skrypty i workflow pozostają bez zmian.
+
+**Zasada.** Efekt ekranu jest dziś jedną warstwą nad całą grą. Po zmianie ma warstwy ułożone przez `z-index`, a kulki gry leżą między liniami skanowania a przyciemnieniem brzegów. Kulka jest malowana nad liniami, więc linie jej nie przyciemniają; przyciemnienie brzegów i odblask są malowane nad kulką, więc padają na nią jak dotąd.
+
+**Warstwy (od najniższej)**
+
+| Warstwa | Element | `z-index` | Co rysuje |
+|---|---|---|---|
+| treść gry | `#app` i wszystko w nim poza kulkami gry | brak (`auto`) | tło, plansza, panele, napisy, tytuł, kule kaskady |
+| linie skanowania | `crt` | `--z-scanlines` | gradient linii; krawędź ekranu i czerń poza nią (jak dotąd) |
+| kulki gry | `ball-{wiersz}-{kolumna}`, `preview-ball` | `--z-ball` | krążki kulek |
+| przyciemnienie brzegów | `crt-vignette` (nowy) | `--z-vignette` | gradient przyciemnienia; krawędź ekranu i czerń poza nią |
+| odblask szkła | `crt-glare` | `--z-glare` | odblask (jak dotąd) |
+
+**Struktura DOM po wdrożeniu**
+
+```
+body
+├── main#app [data-testid="app"]          bez zmian
+├── div [data-testid="crt"]               pusty, linie skanowania
+├── div [data-testid="crt-glare"]         pusty, odblask szkła
+└── div [data-testid="crt-vignette"]      nowy, pusty, przyciemnienie brzegów
+```
+
+Nowy element stoi po `crt-glare`, bo istniejący test integracyjny wymaga, żeby `crt-glare` był następnym rodzeństwem `crt`. O kolejności malowania decyduje `z-index`, nie kolejność w DOM.
+
+**Reguły wykonania**
+
+1. Zmienne kolejności w `:root`: `--z-scanlines: 1000`, `--z-ball: 1001`, `--z-vignette: 1002`, `--z-glare: 1003`. Reguły używają zmiennych; żadna nie ma `z-index` wpisanego liczbą.
+2. Kulki gry dostają `z-index: var(--z-ball)` w osobnej regule z selektorami kulki planszy (`.cell > .ball`) i kulki podglądu (`.preview-ball`). Kulka podglądu dostaje w niej `position: relative` (dziś jest `static`; położenie w układzie się nie zmienia). Wspólna reguła wypełnienia (`border-radius`, `radial-gradient`) pozostaje bez `z-index`, bo korzystają z niej także kule kaskady, które mają zachować linie.
+3. Element `crt` zachowuje `position: fixed`, `inset: 0`, `pointer-events: none`, `border-radius`, zewnętrzny `box-shadow` i gradient linii w tle. Jego `z-index` to `--z-scanlines`. Pierwszy gradient tła (`radial-gradient`) zostaje, ale z oboma przystankami w pełni przezroczystymi: niczego nie rysuje i istnieje tylko dlatego, że test S15 sprawdza jego obecność w tle `crt`. W arkuszu ma komentarz z tym powodem.
+4. Element `crt-vignette`: `position: fixed`, `inset: 0`, `pointer-events: none`, `z-index: var(--z-vignette)`, ten sam `border-radius: var(--crt-edge-radius)` i ten sam zewnętrzny `box-shadow` co `crt` (najprościej przez wspólną regułę z dwoma selektorami), tło `radial-gradient(ellipse at center, transparent 60%, var(--crt-vignette-color) 100%)`, czyli dokładnie dotychczasowe przyciemnienie. Bez animacji i `transition`. W szablonie: `<div data-testid="crt-vignette" aria-hidden="true"></div>`.
+5. Element `crt-glare` zmienia tylko `z-index` na `var(--z-glare)`.
+6. Kolor linii powstaje wyłącznie z `--crt-scanline-alpha` (`rgb(0 0 0 / var(--crt-scanline-alpha))`), jak dziś. Żadna inna reguła nie rysuje linii. Dzięki temu nadpisanie zmiennej na `0` daje obraz odniesienia.
+7. Sygnał odmowy ruchu: animacja `reject-flash` zmienia `left` zamiast `transform` (te same klatki: 0, −5 px, 5 px, −5 px, 5 px, 0; ten sam czas i funkcja czasu), a plansza dostaje `position: relative`. Animowany `transform` tworzy kontekst stosu, w którym kulki wpadłyby pod linie na czas sygnału. Reguła `@media (prefers-reduced-motion: reduce)` dla planszy zostaje.
+8. Żaden przodek kulki gry nie tworzy kontekstu stosu. Na `#app`, planszy, polu, kolumnie bocznej, panelu podglądu, `body` i `html` nie ma `transform`, `opacity` poniżej 1, `filter`, `z-index`, `isolation`, `mix-blend-mode`, `will-change` ani `contain`, także w animacjach. Pole zachowuje `position: relative` bez `z-index`. Animacja `transform` na samej kulce (podskok) jest w porządku: `z-index` ma ten sam element.
+9. Kulka się nie zmienia: ten sam kształt, wypełnienie, odstęp 12% i kolory. Nie dostaje cienia, poświaty ani obrysu.
+
+**Dlaczego miejsce bez linii nie rozjeżdża się z kulką.** Nie ma osobnego „otworu” w liniach. Bez linii jest dokładnie to, co maluje element kulki, więc podskok, spłaszczenie, przewinięcie strony i zmiana rozmiaru okna nie wymagają żadnej synchronizacji. Pole, z którego kulka odeszła albo została zbita, nie ma widocznego elementu kulki (`display: none` przy `data-color="0"`), więc ma linie na całej powierzchni.
+
+**Przypadki brzegowe**
+
+- **Wyróżnienie przy ograniczonym ruchu:** obrys jest na polu, czyli pod liniami; krążek kulki jest bez linii. Specyfikacja to dopuszcza.
+- **Kulka przy rogu okna (okno 800×600, strona przewinięta):** `crt-vignette` ma tę samą krawędź i czerń poza nią co `crt`, więc kulka nie wystaje poza zaokrąglony róg ekranu.
+- **Przeglądarka bez potrzebnego efektu:** `z-index` działa w każdej przeglądarce; przypadek nie występuje.
+- **Wydajność:** `z-index` na 81 elementach nie tworzy warstw kompozytora ani nie dodaje pracy przy kliknięciu. Limit 100 ms przy 80 kulkach sprawdza test S24.
+
+**Budowanie i publikacja.** Bez zmian. Plik gry rośnie o kilkaset bajtów. Sprawdzenia po publikacji (P1, P2, P4) nie czytają efektu ekranu.
+
+### Model danych
+
+Bez zmian. Nie dochodzi żaden klucz `localStorage` ani pole w istniejących; `kulki.game.v1`, `kulki.best.v1` i `kulki.sound.v1` zachowują kształt i znaczenie, więc dane zapisane przez poprzednią wersję są czytane bez migracji (S24). Specyfikacja nie oznacza żadnych danych jako osobowe.
+
+### Kontrakty API
+
+Gra nadal nie ma API sieciowego. **Interfejs testowy `window.__kulki` się nie zmienia.** Wszystkie informacje dla testów są w DOM, w stylach obliczonych i na zrzucie ekranu. Poniższe pozycje są dodatkami do kontraktu DOM i po wdrożeniu są chronione ([BACKWARD_COMPATIBILITY.md](../../BACKWARD_COMPATIBILITY.md)).
+
+#### Nowy identyfikator
+
+| Element | `data-testid` | Uwagi |
+|---|---|---|
+| Przyciemnienie brzegów | `crt-vignette` | pusty, `aria-hidden="true"`, dziecko `body`, po `crt-glare` |
+
+#### Zmienne CSS w `:root`
+
+| Zmienna | Znaczenie | Wymaganie |
+|---|---|---|
+| `--z-scanlines` | `z-index` elementu `crt` | liczba całkowita |
+| `--z-ball` | `z-index` kulek planszy i podglądu | większa od `--z-scanlines` |
+| `--z-vignette` | `z-index` elementu `crt-vignette` | większa od `--z-ball` |
+| `--z-glare` | `z-index` elementu `crt-glare` | większa od `--z-vignette` |
+| `--crt-scanline-alpha` (istniejąca) | przezroczystość ciemnej linii | 0,2–0,4; jedyne źródło koloru linii |
+| `--crt-vignette-color` (istniejąca) | kolor przyciemnienia brzegów | używana tylko przez `crt-vignette` |
+
+#### Co testy odczytują
+
+| Potrzeba | Odczyt |
+|---|---|
+| zrzut ekranu | `page.screenshot({ scale: 'css' })`: jeden piksel zrzutu na jeden piksel strony, także w WebKicie, który domyślnie robi zrzut w podwójnej gęstości |
+| obraz odniesienia | `document.documentElement.style.setProperty('--crt-scanline-alpha', '0')`, zrzut, potem `removeProperty`; stan gry i DOM bez zmian |
+| krążek kulki | `getBoundingClientRect()` elementu `ball-{wiersz}-{kolumna}` albo kolejnego `preview-ball`: krążek to elipsa wpisana w ten prostokąt (prostokąt uwzględnia `transform` podskoku) |
+| wnętrze i otoczenie krążka | elipsa o półosiach mniejszych o 2 px; punkty pola albo panelu `preview` poza elipsą o półosiach większych o 2 px, z pominięciem ramki pola |
+| wiersz linii albo przerwy | piksel tła pustego pola (albo tła pola obok kulki, co najmniej 2 px poza krążkiem) w tym wierszu: przyciemniony linią względem obrazu odniesienia albo nie |
+| kulka zatrzymana w podskoku | `freezeAt(page, wiersz, kolumna, ułamek)` z `tests/e2e/helpers/ball.js`: `0.5` to najwyższe położenie, `0` to największe spłaszczenie; oba zrzuty przy tym samym zatrzymaniu |
+| kolejność warstw | `z-index` ze stylu obliczonego: `crt` < kulka planszy = kulka podglądu < `crt-vignette` < `crt-glare`; kula kaskady ma `auto` |
+| przyciemnienie pada na kulki | `background-image` elementu `crt-vignette` zawiera `radial-gradient`; prostokąt równy oknu; promień krawędzi równy promieniowi `crt`; `pointer-events: none`; `textContent` pusty; `aria-hidden="true"` |
+| brak kontekstu stosu przy odmowie | w jednym `page.evaluate`: kliknięcie pola bez drogi, potem `transform` planszy ze stylu obliczonego równe `none` przy `data-rejected="true"` |
+| wartości S20 | jak w tabeli „Co testy odczytują: ekran” specyfikacji S17–S21 (siła linii i promień krawędzi z `crt`, odblask z `crt-glare`, poświata napisów) |
+
+### Integracje
+
+Brak. Nie ma dostawcy, trybu atrapy ani sekretów. Zmiana używa wyłącznie `z-index` i `position`, obecnych w każdej przeglądarce.
+
+### Plan implementacji
+
+Specyfikacja ma jeden etap. Każdy krok kończy się przechodzącą bramką walidacji i zostawia działającą aplikację. Testy E2E trafiają do `tests/e2e/s22-…`, `s23-…` i `s24-…`; tytuł testu zaczyna się od numeru scenariusza. Kryteria `[ręcznie]` nie mają testu; w PR opisuje się, jak je obejrzeć (zrzuty ekranu przy 1024×768 i 1920×1080 z kulkami 7 kolorów).
+
+Asercji w testach S1–S21 nie wolno zmieniać. Przy pisaniu tego planu przejrzano testy S3, S12, S15 i S20 oraz `tests/integration/crt.test.js`: żadna asercja nie zależy od `z-index`, od tego, że przyciemnienie rysuje `crt`, ani od tego, że plansza przy odmowie ma `transform`. Oczekiwany wynik: żadna istniejąca asercja się nie zmienia.
+
+**Zależności**
+
+| Etap | Zależy od | Uwagi |
+|---|---|---|
+| 1. Kulki bez linii skanowania (S22–S24) | nic | działa z kaskadą kul (S19) i bez niej |
+
+#### Etap 1: kulki bez linii skanowania (S22, S23, S24). Bez zależności
+
+| Krok | Zakres | Testy | Zależy od |
+|---|---|---|---|
+| 1.1 | Warstwy ekranu bez widocznej zmiany: zmienne `--z-*`; element `crt-vignette` w szablonie i jego reguła; przyciemnienie przeniesione z `crt` (w tle `crt` zostaje przezroczysty `radial-gradient` z komentarzem); `z-index` elementów `crt` i `crt-glare` ze zmiennych; `reject-flash` przez `left` i `position: relative` planszy | integracyjny (`tests/integration/crt.test.js`, nowe przypadki): `crt-vignette` istnieje raz, jest pusty, ma `aria-hidden`, jest dzieckiem `body` poza `#app`; E2E S24: kolejność `z-index` warstw ekranu, `crt-vignette` równy oknu z promieniem `crt`, bez przechwytywania kliknięć, bez napisu i poza drzewem dostępności, wartości wymagane przez S20, `transform` planszy równe `none` przy odmowie, dwa kolejne zrzuty identyczne i brak animacji, ten sam wygląd w motywie jasnym i ciemnym; komplet istniejących testów przechodzi bez zmian | |
+| 1.2 | Kulki nad liniami: osobna reguła z `z-index: var(--z-ball)` dla kulek planszy i podglądu. Pomocnik `tests/e2e/helpers/scanlines.js` (obraz odniesienia, dekodowanie zrzutów, krążek, wiersze linii, progi) | E2E S22: 7 kolorów, podgląd, narożniki i środek, otoczenie krążków, puste pole, 81 kulek, zmiana rozmiaru okna bez ponownego otwierania, okno 800×600 po przewinięciu, pytanie o nową grę i koniec gry, brak animacji; wszystko przy 1024×768 i 1920×1080 tam, gdzie wymaga tego kryterium. Jeśli kaskada kul (S19) jest już wdrożona: kule kaskady zachowują linie | 1.1 |
+| 1.3 | Testy kulki w ruchu, bez zmian w produkcie | E2E S23: najwyższe i najniższe położenie podskoku z otoczeniem krążka, ograniczony ruch, ruch bez zbicia (pole docelowe, kulki dolosowane, pole opuszczone), ruch ze zbiciem (pola po zbitych kulkach), odmowa ruchu, nowy podgląd | 1.2 |
+| 1.4 | Testy regresji, bez zmian w produkcie | E2E S24: kulki okrągłe, kolory bazowe, odstęp 12% (±1 px), brak `box-shadow` i `filter` na kulkach; kliknięcie kulki przy 80 kulkach i kliknięcia pól, pól narożnych i przycisków zmieniają stan w najwyżej 100 ms; tekst strony i drzewo dostępności bez nowych pozycji; kulki bez linii przy `file://` bez żądań sieciowych. Jeśli kaskada kul jest już wdrożona: wypełnienie kuli kaskady identyczne z kulką planszy | 1.2 |
+
+Kroki 1.1 i 1.2 zmieniają ten sam blok arkusza i mogą trafić do jednego PR. Kroki 1.3 i 1.4 są od siebie niezależne. Pozostałe kryteria S24 mają już testy i nie wymagają nowych: scenariusze S1–S21 (`tests/e2e/`), podskakiwanie i odmowa ruchu zgodne z S10–S13 (`s10-…` do `s13-…`), dane zapisane przez poprzednią wersję (`s16-gra-dziala-jak-dotad`), jeden plik bez zasobów zewnętrznych (`tests/integration/single-file.test.js`), P1, P2 i P4 (`tests/postdeploy/`, w bramce w trybie atrapy).
+
+**Kaskada kul (S19).** W chwili pisania tego planu kaskada nie jest wdrożona. Kryteria o kulach kaskady (S22: zachowują linie; S24: wypełnienie identyczne z kulką planszy) sprawdza ta zmiana, jeśli kaskada już jest; w przeciwnym razie test dopisuje wdrożenie kaskady. W obu kolejnościach obowiązuje to samo: selektor kuli kaskady trafia do wspólnej reguły wypełnienia, a nie do reguły z `--z-ball`.
+
+#### Wskazówki do testów
+
+- Zrzuty dekoduje się w przeglądarce, jak w `tests/e2e/helpers/screen.js`: obraz z adresu `data:` narysowany na `<canvas>` utworzonym w teście i odczytany przez `getImageData`. Oba zrzuty (zwykły i odniesienia) dekoduje się w jednym `page.evaluate` i tam porównuje; do Node wraca tylko wynik (liczba niezgodnych pikseli i pierwszy z nich), nie tablice pikseli.
+- Progi ze specyfikacji są stałymi pomocnika: zgodność koloru to różnica najwyżej 3 w każdej składowej; piksel przyciemniony linią ma sumę składowych mniejszą o co najmniej 10%; pas 2 px po obu stronach krawędzi krążka jest pomijany.
+- Po ustawieniu albo usunięciu nadpisania `--crt-scanline-alpha` nie trzeba na nic czekać: `page.screenshot()` maluje aktualny styl.
+- Przed zrzutem: `await page.evaluate(() => document.fonts.ready)` i `data-animating="false"` na planszy. Przy zaznaczonej kulce oba zrzuty robi się po `freezeAt`, bo podskok zmienia obraz między zrzutami.
+- Ograniczony ruch: `page.emulateMedia({ reducedMotion: 'reduce' })` przed otwarciem gry.
+- Odmowa ruchu „po zakończeniu sygnału”: czekać na `data-rejected="false"`, potem zatrzymać podskok i zrobić zrzuty.
+- Przewinięcie przy 800×600: `window.scrollTo(document.documentElement.scrollWidth, document.documentElement.scrollHeight)`; krążki bierze się z `getBoundingClientRect()` po przewinięciu, a kulkę „widoczną w całości” rozpoznaje po prostokącie mieszczącym się w oknie.
+- Plansza z 81 kulkami i z 80 kulkami: `setState` z planszą bez gotowych linii (wzór `(3 × wiersz + kolumna) mod 7`, jak w istniejących testach S15 i S20).
+- Zrzuty porównuje się tylko w obrębie jednego testu i jednego silnika; nie ma zrzutów wzorcowych w repozytorium.
+- Sposób odczytu został sprawdzony próbą w Chromium, Firefoksie i WebKicie przy 1024×768 i 1920×1080: przed zmianą 14 680 z 29 360 pikseli wnętrza 20 krążków różniło się od obrazu odniesienia, po zmianie 0; w otoczeniu krążków 0 z 26 160 pikseli odbiegało od „tła z liniami”; kulka zatrzymana przez `freezeAt` w położeniach `0.5` i `0` dała 0 niezgodnych pikseli; kulka w lewym dolnym polu przy 1024×768 była pod `crt-vignette` wyraźnie ciemniejsza niż bez przyciemnienia. Przy planszy z `transform` w animacji linie wracały na kulki; przy animacji `left` nie.
+- Bez stałych opóźnień; przebiegi równoległe z `--workers 2` i własnym `E2E_RUN_ID`.
+
+#### Miejsca wspólne przy pracy równoległej
+
+- `src/styles.css`: krok 1.1 zmienia blok „efekt CRT”, animację `reject-flash`, regułę planszy i dopisuje zmienne `--z-*`; krok 1.2 dopisuje jedną regułę kulek. Wdrożenie kaskady kul (S19) dopisuje selektor do wspólnej reguły wypełnienia kulek, której ta zmiana nie rusza.
+- `src/index.html`: krok 1.1 dopisuje jeden wiersz po `crt-glare`.
+- `tests/integration/crt.test.js`: krok 1.1 dopisuje przypadki; istniejących nie zmienia.
+- `tests/e2e/helpers/`: nowy plik `scanlines.js`; istniejących pomocników się nie przerabia.
+- `src/ui/`, `src/test-api.js`, `src/game/`, `src/storage/`, `src/audio/`, `tools/`, `scripts/`, Compose i workflow: żaden krok ich nie zmienia.
