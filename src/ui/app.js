@@ -62,14 +62,14 @@ function buildBoard(doc) {
   });
   for (let row = 0; row < BOARD_SIZE; row += 1) {
     for (let col = 0; col < BOARD_SIZE; col += 1) {
-      board.append(
-        el(doc, 'div', {
-          class: 'cell',
-          'data-testid': `cell-${row}-${col}`,
-          'data-color': '0',
-          'data-selected': 'false',
-        }),
-      );
+      const cell = el(doc, 'div', {
+        class: 'cell',
+        'data-testid': `cell-${row}-${col}`,
+        'data-color': '0',
+        'data-selected': 'false',
+      });
+      cell.append(el(doc, 'span', { class: 'ball', 'data-testid': `ball-${row}-${col}` }));
+      board.append(cell);
     }
   }
   return board;

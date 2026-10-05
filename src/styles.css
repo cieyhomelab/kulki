@@ -83,9 +83,8 @@ h1 {
   outline-offset: -3px;
 }
 
-.cell:not([data-color='0'])::after,
+.ball,
 .preview-ball {
-  content: '';
   position: absolute;
   inset: 12%;
   border-radius: 50%;
@@ -95,6 +94,10 @@ h1 {
     var(--ball) 45%,
     color-mix(in srgb, var(--ball) 55%, #000) 100%
   );
+}
+
+.cell[data-color='0'] > .ball {
+  display: none;
 }
 
 .preview-ball {
