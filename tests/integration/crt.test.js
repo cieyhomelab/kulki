@@ -19,4 +19,18 @@ describe('CRT effect element', () => {
     const { document } = (await loadGame()).window;
     expect(document.querySelectorAll('[data-testid="crt"]')).toHaveLength(1);
   });
+
+  it('has an empty, hidden glare element right after the screen, as a child of the body', async () => {
+    const { document } = (await loadGame()).window;
+    const crt = document.querySelector('[data-testid="crt"]');
+    const glare = document.querySelector('[data-testid="crt-glare"]');
+
+    expect(document.querySelectorAll('[data-testid="crt-glare"]')).toHaveLength(1);
+    expect(glare?.tagName).toBe('DIV');
+    expect(glare?.getAttribute('aria-hidden')).toBe('true');
+    expect(glare?.childNodes).toHaveLength(0);
+    expect(glare?.parentElement).toBe(document.body);
+    expect(crt?.nextElementSibling).toBe(glare);
+    expect(crt?.childNodes).toHaveLength(0);
+  });
 });

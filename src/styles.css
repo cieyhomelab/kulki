@@ -34,11 +34,13 @@
   --c5: #00acc1;
   --c6: #1e53d6;
   --c7: #8e24aa;
-  --crt-scanline-color: rgb(0 0 0 / 0.12);
+  --crt-scanline-alpha: 0.3;
+  --crt-edge-radius: 4vmin;
+  --crt-outside-color: #000;
   --crt-scanline-period: 4px;
   --crt-scanline-width: 2px;
   --crt-vignette-color: rgb(0 0 0 / 0.35);
-  --crt-glow-blur: 3px;
+  --crt-glow-blur: 4px;
   --crt-glow-strength: 40%;
 }
 
@@ -293,10 +295,15 @@ h1 {
   margin-left: 4px;
 }
 
-/* CRT screen effect: a static, empty overlay above the whole game. */
+/* CRT screen effect: a static, empty overlay above the whole game: rounded edge, black outside it, scanlines, vignette and a glass glare. */
 body {
   text-shadow: 0 0 var(--crt-glow-blur)
     color-mix(in srgb, currentColor var(--crt-glow-strength), transparent);
+}
+
+/* Browsers reset text-shadow on buttons; take the glow from body so it stays the single source. */
+button {
+  text-shadow: inherit;
 }
 
 [data-testid='crt'] {
@@ -304,13 +311,28 @@ body {
   inset: 0;
   z-index: 1000;
   pointer-events: none;
+  border-radius: var(--crt-edge-radius);
+  box-shadow: 0 0 0 100vmax var(--crt-outside-color);
   background:
     radial-gradient(ellipse at center, transparent 60%, var(--crt-vignette-color) 100%),
     repeating-linear-gradient(
       to bottom,
       transparent 0,
       transparent calc(var(--crt-scanline-period) - var(--crt-scanline-width)),
-      var(--crt-scanline-color) calc(var(--crt-scanline-period) - var(--crt-scanline-width)),
-      var(--crt-scanline-color) var(--crt-scanline-period)
+      rgb(0 0 0 / var(--crt-scanline-alpha))
+        calc(var(--crt-scanline-period) - var(--crt-scanline-width)),
+      rgb(0 0 0 / var(--crt-scanline-alpha)) var(--crt-scanline-period)
     );
+}
+
+[data-testid='crt-glare'] {
+  position: fixed;
+  top: 4%;
+  left: 5%;
+  width: 28%;
+  height: 16%;
+  z-index: 1001;
+  pointer-events: none;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgb(255 255 255 / 0.1) 0%, transparent 70%);
 }
