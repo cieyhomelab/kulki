@@ -240,4 +240,299 @@ Poniższe decyzje podjął analityk, wybierając opcję najprostszą i najłatwi
 
 ## Sekcje techniczne
 
-> Uzupełnia architekt po zatwierdzeniu specyfikacji: architektura, model danych, kontrakty API, plan implementacji.
+Decyzje i ich uzasadnienie: [ADR 0004](../../docs/adr/0004-ekran-kineskopu-neonowy-tytul-i-nowy-uklad.md). Stos się nie zmienia ([ADR 0001](../../docs/adr/0001-stos-technologiczny.md)); nie dochodzi zależność, usługa ani krok budowania. Zasady pracy w repozytorium: [AGENTS.md](../../AGENTS.md). Ten rozdział rozszerza sekcje techniczne [specyfikacji gry](2026-10-04-gra-w-kulki.md) i [specyfikacji wyglądu retro](2026-10-05-podskakujaca-kulka-i-wyglad-retro.md); wszystko, czego tu nie zmieniono, obowiązuje dalej.
+
+### Architektura
+
+Zmiany dotyczą wyłącznie warstwy interfejsu: `src/ui/app.js`, nowy `src/ui/cascade.js`, `src/ui/texts.js` (jeden napis), `src/styles.css` i `src/index.html`. Logika gry (`src/game/`), zapis (`src/storage/`), dźwięk (`src/audio/`), interfejs testowy (`src/test-api.js`), budowanie (`tools/`), Compose, skrypty i workflow pozostają bez zmian. Wszystko jest zrobione w CSS i DOM: bez obrazów, SVG i `<canvas>`.
+
+**Komponenty**
+
+| Komponent | Miejsce | Odpowiedzialność | Etap |
+|---|---|---|---|
+| Blok tytułu | `src/ui/app.js`, `src/styles.css` | element `hero` obejmujący tytuł; miejsce na kaskadę | krok W |
+| Układ | `src/ui/app.js`, `src/styles.css` | siatka: blok tytułu, plansza, kolumna boczna `sidebar`; okna w kolumnie; kolory siatki planszy | 1 |
+| Tytuł | `src/ui/texts.js`, `src/index.html`, `src/styles.css` | brzmienie „KULKI”, wypełnienie, obrys, głębia, poświata | 2 |
+| Kaskada kul | `src/ui/cascade.js` (nowy), `src/styles.css` | stała tablica kul i zbudowanie z niej elementów | 2 |
+| Ekran kineskopu | `src/index.html`, `src/styles.css` | krawędź ekranu i czerń poza nią na `crt`, odblask `crt-glare`, mocniejsze linie i poświata | 3 |
+
+**Struktura DOM po wdrożeniu wszystkich etapów**
+
+```
+body
+├─ main#app [app]                       siatka: 2 kolumny, 2 wiersze
+│  ├─ [hero]                            wiersz 1; stałe wymiary
+│  │  ├─ h1 [title]                     „KULKI”
+│  │  └─ [cascade] aria-hidden          kule [cascade-ball] × N
+│  ├─ [board]                           wiersz 2, kolumna 1
+│  └─ [sidebar]                         wiersz 2, kolumna 2; stała szerokość, wyrównana do góry
+│     ├─ [score-panel]
+│     ├─ [best-score-panel]
+│     ├─ [preview]
+│     ├─ [new-game]
+│     ├─ [sound-toggle]
+│     └─ [confirm-dialog] / [game-over] gdy widoczne
+├─ [crt] aria-hidden                    ekran: linie, winieta, krawędź, czerń poza nią
+└─ [crt-glare] aria-hidden              odblask szkła
+```
+
+W nawiasach kwadratowych są wartości `data-testid`. Klasy CSS i zagnieżdżenie pomocniczych elementów nie są kontraktem. Kolejność elementów z napisami w DOM daje tę samą kolejność widocznego tekstu co dotąd (plansza i kaskada nie mają tekstu).
+
+**Blok tytułu (krok W).** `h1` dostaje opakowanie: element z `data-testid="hero"`. W kroku W blok niczego nie zmienia na ekranie (przejmuje od `h1` rolę elementu paska, tytuł wygląda i leży jak dotąd). Krok istnieje po to, żeby etap 1 mógł ustawić blok w siatce, a etap 2 wypełnić go kaskadą, bez czekania na siebie nawzajem.
+
+**Układ (etap 1).** `#app` staje się siatką CSS o dwóch kolumnach i dwóch wierszach.
+
+1. Wiersz 1 zajmuje blok tytułu, wyrównany do lewej krawędzi planszy. Wiersz 2: plansza w kolumnie 1, kolumna boczna w kolumnie 2.
+2. Kolumna boczna to nowy element `sidebar`: kolumna flex o stałej szerokości (zmienna `--sidebar-width`), wyrównana do górnej krawędzi planszy (`align-self: start`). Zawiera kolejno: panel wyniku, panel najlepszego wyniku, panel podglądu, „Nowa gra”, przycisk dźwięku. Panele wyniku przenoszą się w DOM z paska do kolumny; dotychczasowy pasek i dotychczasowa kolumna przycisków znikają jako elementy pomocnicze.
+3. Okna (`confirm-dialog`, `game-over`) są wstawiane jako ostatnie dziecko `sidebar`, czyli pod przyciskiem dźwięku. Układają swoją treść w pionie i łamią napisy do szerokości kolumny; żaden napis nie jest ucinany.
+4. Wysokość wiersza 2 wyznacza plansza, a szerokość kolumny bocznej jest stała. Dlatego pojawienie się i zniknięcie okna nie przesuwa ani nie zmienia rozmiaru żadnego innego elementu. Kolumna z najwyższym oknem (koniec gry z rekordem) jest niższa od planszy przy 1024×768.
+5. Gra leży pośrodku okna (`body` nadal centruje `#app`). Zmienna `--cell` odlicza od wysokości okna wysokość bloku tytułu, odstęp i margines bezpieczeństwa od krawędzi okna (co najmniej 24 px z każdej strony, żeby elementy nie wpadały w zaokrąglone rogi ekranu), a od szerokości okna szerokość kolumny bocznej i odstęp. Górna granica 64 px zostaje.
+6. Kolory planszy: linie siatki to tło planszy widoczne w odstępach między polami oraz ramka pól. Zmienne `--board-bg` i `--cell-border` dostają jasny niebieski, `--cell-bg` ciemny granat. Wymagane: składowa niebieska największa w obu, jasność względna tła pól ≤ 0,05, kontrast linii do tła pól ≥ 3:1. Liczby wyniku zostają w `--neon-yellow`.
+
+Budżet miejsca przy 1024×768 (czcionka gry ma znaki szerokości 1 em, więc da się to policzyć): plansza 9 × 64 + 20 = 596 px; kolumna boczna około 230 px (najdłuższy napis przycisku „Dźwięk: wyciszony” to 136 px, sześciocyfrowy wynik 144 px); odstęp 24 px; razem około 850 px szerokości. Wysokość: blok tytułu do 104 px, odstęp 12 px, plansza 596 px, razem około 712 px. Kolumna boczna z komunikatem o rekordzie ma około 470 px.
+
+**Tytuł (etap 2).** Jeden element `h1` z jednym węzłem tekstu.
+
+1. Brzmienie: `TEXTS.title` zmienia się na `KULKI`; napis zastępczy `<h1>` w `src/index.html` także. `<title>` strony zostaje `Kulki`. `text-transform` pozostaje zabronione.
+2. Prostokąt liter: `h1` ściśle obejmuje napis (`width: fit-content`, `line-height: 1`, `margin`, `padding` i `border` równe 0 po stronie, od której mierzą testy). Rozmiar czcionki: zmienna `--font-title`, wielokrotność 8 px, co najmniej 2 × `--font-large`; proponowane 48 px (napis 240 × 48 px).
+3. Wypełnienie: `color: var(--title-fill)`, jasny niebieski o kontraście co najmniej 4,5:1 do `--page-bg` (np. `#3d8bff`, kontrast około 5,9:1).
+4. Obrys: `-webkit-text-stroke: var(--title-stroke-width) var(--title-stroke-color)` oraz `paint-order: stroke fill`. Kolor żółty, grubość 2–4 px.
+5. Głębia i poświata: jedna deklaracja `text-shadow`. Warstwy głębi mają rozmycie 0 i dodatnie przesunięcia w poziomie i w pionie (kilka warstw co 1–2 px aż do `--title-depth-offset`), kolor `--title-depth-color` ciemniejszy od wypełnienia. Warstwa poświaty ma przesunięcie 0, rozmycie `--title-glow-blur` (co najmniej 16 px) i kolor `--title-glow-color` (żółty). Deklaracja zastępuje poświatę dziedziczoną z `body`.
+6. Wartości `--title-*` są w `:root` zwykłymi kolorami i długościami, bez `color-mix`, żeby styl obliczony zwracał `rgb(…)` i piksele w każdym silniku.
+7. Tytuł nie ma animacji ani `transition`, nie ma pseudoelementów z treścią i nie ma powielonych napisów.
+
+**Kaskada kul (etap 2).** Nowy moduł `src/ui/cascade.js` zawiera zamrożoną tablicę `CASCADE_BALLS` i funkcję `buildCascade(doc)`.
+
+1. Blok `hero` ma `position: relative` i stałe wymiary ze zmiennych `--hero-width` i `--hero-height`: najwyżej 352 × 104 px. Taki blok mieści się nad planszą w nowym układzie i w dotychczasowym pasku obok paneli wyniku, więc etap 2 działa w każdym z nich. Tytuł ma w bloku stałe położenie.
+2. `buildCascade` tworzy kontener `cascade` (`aria-hidden="true"`, bez tekstu) i po jednym elemencie `cascade-ball` na wpis tablicy, w kolejności tablicy. Każda kula ma `data-color` (1–7) oraz zmienne `--x`, `--y`, `--size` ustawione w atrybucie `style`; CSS ustawia z nich `left`, `top`, `width`, `height` przy `position: absolute` względem bloku.
+3. Wypełnienie: selektor kuli kaskady zostaje dopisany do istniejącej reguły wypełnienia kulek (`border-radius: 50%` i `radial-gradient` ze zmienną `--ball`). Nie powstaje druga kopia gradientu. Kula kaskady nie ma klasy `ball`, więc reguła podskakiwania jej nie dotyczy.
+4. Kule leżą w całości w bloku `hero` i poza prostokątem liter powiększonym o obrys i głębię. Mogą zachodzić na siebie nawzajem.
+5. Moduł nie importuje `rng` i nie używa `Math.random`, czasu ani `localStorage`. Kaskada powstaje raz przy starcie i żadna funkcja rysująca (`render`, animacje, `setState`) jej nie dotyka.
+6. Kule i tytuł nie mają obsługi kliknięć. Kaskada zachowuje domyślne `pointer-events`, żeby test mógł kliknąć kulę; kliknięcie niczego nie zmienia, bo gra reaguje tylko na pola i przyciski. Kursor nad kulą pozostaje domyślny.
+
+**Ekran kineskopu (etap 3).** Ekranem jest istniejący element `crt`.
+
+1. Krawędź ekranu: `border-radius: var(--crt-edge-radius)` na `crt`, jedna wartość dla czterech narożników, w jednostkach `vmin` (proponowane `4vmin`; wymagane co najmniej 2% krótszego boku okna). Narożniki są kołowe, nie eliptyczne, żeby styl obliczony zwracał jedną długość.
+2. Czerń poza ekranem: zewnętrzny `box-shadow` elementu `crt` z rozmyciem 0, rozszerzeniem `100vmax` i kolorem `--crt-outside-color` (`#000`). Zamalowuje rogi okna poza zaokrągleniem. Dodatkowa warstwa `inset` może przyciemniać brzegi szkła.
+3. Linie skanowania: nowa zmienna `--crt-scanline-alpha` (liczba z przedziału 0,2–0,4; proponowane 0,3). Kolor linii to `rgb(0 0 0 / var(--crt-scanline-alpha))`, przerwa to `transparent`. Gradient linii pozostaje pierwszym z `repeating-linear-gradient` w tle `crt`.
+4. Poświata napisów: `--crt-glow-blur` rośnie do co najmniej 4 px. Reguła `text-shadow` na `body` zostaje jedynym źródłem poświaty podpisów i napisów przycisków.
+5. Odblask szkła: nowy pusty element `<div data-testid="crt-glare" aria-hidden="true">` w szablonie, bezpośrednio po `crt`, jako dziecko `body` (nie `crt`, który pozostaje pusty, i nie `#app`, którego zawartość interfejs podmienia). CSS: `position: fixed`, położenie i rozmiar w procentach okna tak, żeby cały prostokąt leżał wewnątrz krawędzi ekranu, `pointer-events: none`, `z-index` nad grą, tło z nieruchomego gradientu przechodzącego w przezroczystość.
+6. Winieta zostaje (`radial-gradient` w tle `crt`); może być mocniejsza.
+7. `crt` i `crt-glare` nie mają animacji ani `transition`. Na `#app`, planszy i ich przodkach nie ma `transform`, `filter`, `perspective` ani `backdrop-filter`: treść gry nie jest zniekształcana ani przerysowywana przez efekt.
+
+**Budowanie i publikacja.** Bez zmian. Plik gry rośnie o kilka kilobajtów. Budowanie pozostaje powtarzalne. Sprawdzenia po publikacji (P1, P2, P4) nie czytają tytułu ani układu.
+
+### Model danych
+
+Bez zmian. Nie dochodzi żaden klucz `localStorage` ani pole w istniejących; klucze `kulki.game.v1`, `kulki.best.v1` i `kulki.sound.v1` zachowują kształt i znaczenie, więc dane zapisane przez poprzednią wersję są czytane bez migracji (S21). Kaskada jest stałą w kodzie, nie daną. Specyfikacja nie oznacza żadnych danych jako osobowe.
+
+### Kontrakty API
+
+Gra nadal nie ma API sieciowego. **Interfejs testowy `window.__kulki` się nie zmienia:** te same cztery metody, te same pola `getState()`, ta sama kolejność losowań. Wszystkie nowe informacje dla testów są w DOM i w stylach obliczonych. Poniższe pozycje są dodatkami do kontraktu DOM z wcześniejszych specyfikacji i po wdrożeniu są chronione ([BACKWARD_COMPATIBILITY.md](../../BACKWARD_COMPATIBILITY.md)). Istniejące identyfikatory zostają na swoich elementach i nie zmieniają znaczenia.
+
+#### Nowe identyfikatory
+
+| Element | `data-testid` | Uwagi | Od |
+|---|---|---|---|
+| Blok tytułu | `hero` | zawiera `title`, od etapu 2 także `cascade`; dziecko `app` | W |
+| Kolumna boczna | `sidebar` | zawiera `score-panel`, `best-score-panel`, `preview`, `new-game`, `sound-toggle` i widoczne okno, w tej kolejności | 1 |
+| Kaskada | `cascade` | `aria-hidden="true"`, bez tekstu; dziecko `hero` | 2 |
+| Kula kaskady | `cascade-ball` | wiele elementów (7–30); `data-color="1"`…`"7"`; dziecko `cascade` | 2 |
+| Odblask szkła | `crt-glare` | pusty, `aria-hidden="true"`, dziecko `body` | 3 |
+
+Kule kaskady są odróżnialne od kulek gry po identyfikatorze: kulki planszy to `ball-{wiersz}-{kolumna}`, kulki podglądu to `preview-ball`. Atrybut `data-color` kuli kaskady ma to samo znaczenie co na polu, ale nigdy nie ma wartości `0` i nigdy się nie zmienia.
+
+#### Co testy odczytują: układ (S17)
+
+| Kryterium | Odczyt |
+|---|---|
+| położenie tytułu, planszy, paneli, przycisków, okien | `getBoundingClientRect()` elementów `title`, `board`, `score-panel`, `best-score-panel`, `preview`, `new-game`, `sound-toggle`, `confirm-dialog`, `game-over` |
+| szerokość pola | `getBoundingClientRect()` elementu `cell-0-0` |
+| okno w kolumnie bocznej | okno jest ostatnim dzieckiem `sidebar`; jego prostokąt leży pod `sound-toggle` i w poziomie w granicach `sidebar` |
+| ostatni element kolumny w oknie | dolna krawędź ostatniego dziecka `sidebar` ≤ wysokość okna |
+| okno niczego nie przesuwa | prostokąty pozostałych elementów identyczne przed pojawieniem się okna i po nim |
+| brak przewijania i uciętych napisów | jak w testach S14: `scrollWidth`/`scrollHeight` dokumentu i elementów z napisami |
+| kolor linii siatki | `background-color` elementu `board` oraz `border-color` pól; oba muszą spełniać kryterium |
+| kolor tła pól | `background-color` pola |
+| gra pośrodku | lewa krawędź `board` i prawa krawędź `sidebar` względem szerokości okna |
+| kolejność napisów | `innerText` elementu `body`, jak w istniejącym teście S1 |
+
+#### Co testy odczytują: tytuł (S18)
+
+| Kryterium | Odczyt ze stylu obliczonego albo DOM elementu `title` |
+|---|---|
+| tekst | `textContent` równe `KULKI`; `document.title` równe `Kulki` |
+| czcionka gry | jak w S14 (pomocnik `tests/e2e/helpers/font.js`) |
+| rozmiar liter | `font-size` tytułu ≥ 2 × `font-size` elementu `score` |
+| prostokąt liter | `getBoundingClientRect()` |
+| wypełnienie | `color` |
+| obrys | `-webkit-text-stroke-color` i `-webkit-text-stroke-width` (przez `getPropertyValue`); grubość > 0 |
+| głębia | warstwy `text-shadow` z rozmyciem `0px` i obydwoma przesunięciami dodatnimi; ich kolor ciemniejszy (mniejsza jasność względna) od `color` |
+| poświata | warstwy `text-shadow` z rozmyciem > 0; kolor żółty; rozmycie ≥ 2 × rozmycie `text-shadow` elementu `score-label` |
+| tło pod tytułem | `background-color` najbliższego przodka z nieprzezroczystym tłem (pomocnik `tests/e2e/helpers/contrast.js`) |
+| zasięg tytułu | prostokąt liter powiększony z każdej strony o grubość obrysu i promień poświaty, a w prawo i w dół dodatkowo o największe przesunięcie głębi |
+| jeden nagłówek | `innerText` strony zawiera `KULKI` raz; w drzewie dostępności jest jeden nagłówek poziomu 1 o tej nazwie; `title` ma jeden węzeł tekstu i nie ma pseudoelementów z treścią |
+| brak animacji | `getAnimations()` tytułu puste; `transition-duration` równe `0s` |
+
+#### Co testy odczytują: kaskada (S19)
+
+| Kryterium | Odczyt |
+|---|---|
+| liczba i kolory | liczba elementów `cascade-ball`; zbiór wartości `data-color` |
+| rozmiar i położenie | `getBoundingClientRect()` każdej kuli; szerokość równa wysokości |
+| okrągłość | `border-radius` równe `50%` |
+| identyczne wypełnienie | `background-image` kuli równe `background-image` elementu `ball-{w}-{k}` na polu z tym samym `data-color` |
+| nie zachodzi na inne elementy | prostokąt kuli rozłączny z prostokątami `title`, `board`, paneli, przycisków i okien; w całości w oknie |
+| identyczność między otwarciami i ruchami | lista (`data-color`, prostokąt) wszystkich kul, porównywana w całości |
+| brak napisu i dostępności | `cascade` ma `aria-hidden="true"` i pusty `textContent`; drzewo dostępności nie zawiera kul |
+| brak animacji | `getAnimations()` każdej kuli puste, także gdy podskakuje kulka planszy |
+| kliknięcie nic nie zmienia | `getState()`, `getSoundLog()` oraz `data-selected` i `data-bouncing` pól przed kliknięciem i po nim |
+
+#### Co testy odczytują: ekran (S20)
+
+| Kryterium | Odczyt |
+|---|---|
+| obszar efektu | `getBoundingClientRect()` elementu `crt` równe oknu (jak w S15) |
+| promień krawędzi | `border-top-left-radius` i trzy pozostałe elementu `crt`, w pikselach, każdy ≥ 2% krótszego boku okna |
+| czerń poza ekranem | piksel w każdym z czterech rogów zrzutu ekranu; jasność względna ≤ 0,01 |
+| element wewnątrz krawędzi | każdy z czterech narożników prostokąta elementu leży wewnątrz zaokrąglonego prostokąta `crt` (dla narożnika w kwadracie o boku równym promieniowi przy rogu okna: odległość od środka łuku ≤ promień) |
+| odblask | element `crt-glare` istnieje, jego prostokąt ma dodatnie wymiary i wszystkie narożniki wewnątrz krawędzi ekranu; `textContent` pusty; `aria-hidden="true"`; `background-image` różne od `none` |
+| brak przechwytywania kliknięć | `pointer-events: none` na `crt` i `crt-glare`; kliknięcia testów działają |
+| siła linii skanowania | `--crt-scanline-alpha` z `:root` w przedziale 0,2–0,4; `background-image` elementu `crt` zawiera `repeating-linear-gradient` z kolorem czarnym o tej przezroczystości i z kolorem w pełni przezroczystym |
+| poświata napisów | rozmycie `text-shadow` elementów `score-label`, `best-score-label`, `preview-label`, `new-game`, `sound-toggle` ≥ 4 px |
+| pola niezniekształcone | prostokąty 81 pól: kwadraty tego samego rozmiaru (±1 px), wspólne krawędzie w wierszach i kolumnach |
+| brak animacji | `document.getAnimations()` puste; dwa kolejne zrzuty ekranu identyczne (jak w S15) |
+| motyw i ograniczony ruch | zrzuty ekranu identyczne przy `colorScheme: 'light'` i `'dark'` oraz przy `reducedMotion: 'reduce'` i `'no-preference'` |
+
+#### Zmienne CSS w `:root`
+
+| Zmienna | Znaczenie | Wymaganie | Etap |
+|---|---|---|---|
+| `--sidebar-width` | szerokość kolumny bocznej | stała długość w px | 1 |
+| `--hero-width`, `--hero-height` | wymiary bloku tytułu | najwyżej 352 × 104 px | 2 |
+| `--font-title` | rozmiar liter tytułu | wielokrotność 8 px, ≥ 2 × `--font-large` | 2 |
+| `--title-fill` | wypełnienie liter | niebieski; kontrast ≥ 4,5:1 do `--page-bg` | 2 |
+| `--title-stroke-color`, `--title-stroke-width` | obrys | żółty; > 0 px | 2 |
+| `--title-depth-color`, `--title-depth-offset` | głębia | ciemniejszy od wypełnienia; > 0 px | 2 |
+| `--title-glow-color`, `--title-glow-blur` | poświata tytułu | żółty; ≥ 16 px | 2 |
+| `--crt-edge-radius` | promień krawędzi ekranu | w `vmin`, ≥ `2vmin` | 3 |
+| `--crt-outside-color` | kolor poza ekranem | `#000` | 3 |
+| `--crt-scanline-alpha` | przezroczystość ciemnej linii | liczba 0,2–0,4 | 3 |
+| `--crt-glow-blur` (istniejąca) | promień poświaty napisów | ≥ 4 px | 3 |
+
+„Niebieski” znaczy: składowa niebieska koloru jest największa. „Żółty”: składowe czerwona i zielona są obie większe od niebieskiej. Zmienne `--c1`…`--c7` zachowują wartości.
+
+#### Moduł `src/ui/cascade.js`
+
+```js
+/**
+ * @typedef {object} CascadeBall
+ * @property {1|2|3|4|5|6|7} color numer koloru kulki gry
+ * @property {number} size średnica w pikselach
+ * @property {number} x lewa krawędź w pikselach względem bloku tytułu
+ * @property {number} y górna krawędź w pikselach względem bloku tytułu
+ */
+
+/** @type {ReadonlyArray<Readonly<CascadeBall>>} zamrożona, zawsze ta sama */
+export const CASCADE_BALLS = Object.freeze([]);
+
+/**
+ * @param {Document} doc
+ * @returns {HTMLElement} kontener `cascade` z jednym elementem `cascade-ball` na wpis tablicy
+ */
+export function buildCascade(doc) {}
+```
+
+Niezmienniki tablicy, sprawdzane jednostkowo: od 7 do 30 wpisów; każdy kolor od 1 do `COLOR_COUNT` co najmniej raz; co najmniej 3 różne wartości `size`; `size`, `x`, `y` to nieujemne liczby całkowite; tablica i wpisy są zamrożone. `buildCascade` nie czyta niczego poza tablicą.
+
+**Walidacja wejścia gracza.** Bez zmian: jedynym wejściem są kliknięcia pól i przycisków. Kliknięcie tytułu, kuli kaskady, pustego miejsca, odblasku albo krawędzi ekranu nie ma obsługi i niczego nie zmienia.
+
+### Integracje
+
+Brak. Nie ma dostawcy, trybu atrapy ani sekretów. Zależności od środowiska to wyłącznie funkcje CSS obecne we wszystkich wspieranych przeglądarkach: siatka CSS, `-webkit-text-stroke`, `paint-order` dla tekstu, jednostki `vmin` i `vmax`. Gdy przeglądarka którejś nie obsługuje, pomija deklarację: tytuł zostaje bez obrysu albo ekran bez zaokrąglenia, a gra działa normalnie.
+
+### Plan implementacji
+
+Każdy krok kończy się przechodzącą bramką walidacji i zostawia działającą aplikację. Testy E2E trafiają do `tests/e2e/s<numer>-<nazwa>.spec.js`; tytuł testu zaczyna się od numeru scenariusza. Kryteria `[ręcznie]` nie mają testu i zostają do akceptacji właściciela; w PR opisuje się, jak je obejrzeć (zrzut ekranu przy 1024×768 i 1920×1080).
+
+Istniejące testy: asercji S1–S13 nie wolno zmieniać, poza oczekiwanym brzmieniem tytułu w kroku 2.1. Asercje S14–S16 wolno zmienić tylko wtedy, gdy są sprzeczne ze zmianami z sekcji „Zmiany względem wcześniejszych specyfikacji”; każdą taką zmianę wymienia się w opisie PR z numerem wiersza tabeli, z którego wynika. Przy pisaniu tego planu istniejące testy S1, S14 i S15 zostały przejrzane pod kątem układu, kolorów i siły efektu: żadna asercja nie zależy od położenia paneli w pasku, od położenia okien pod planszą, od koloru tytułu ani od dotychczasowych wartości 12% i 3 px. Testy S14 o mieszczeniu się w oknie i niezasłanianiu planszy przez okna pozostają prawdziwe w nowym układzie. Oczekiwany wynik: poza krokiem 2.1 żadna istniejąca asercja się nie zmienia.
+
+**Zależności między etapami**
+
+| Etap | Zależy od | Uwagi |
+|---|---|---|
+| Krok wspólny W | nic | mała zmiana bez widocznego skutku |
+| 1. Nowy układ (S17) | W | działa z dotychczasowym tytułem i efektem CRT |
+| 2. Neonowy tytuł i kaskada (S18, S19) | W | działa w dotychczasowym i w nowym układzie |
+| 3. Wypukły ekran (S20) | nic | dotyka tylko szablonu, bloku CRT w arkuszu i zmiennych `--crt-*` |
+| Krok R (S21) | nic | testy regresji; równolegle z etapami |
+
+Etapy 1, 2 i 3 nie zależą od siebie. Kryteria odwołujące się do wyniku innego etapu sprawdza etap wdrażany później, zgodnie z sekcją „Etapy dostarczenia”; wskazują to kroki 1.3, 2.4 i 3.3.
+
+#### Krok wspólny W
+
+| Krok | Zakres | Testy | Zależy od |
+|---|---|---|---|
+| W | Element `hero` jako opakowanie `h1` w `src/ui/app.js`; w CSS przejmuje położenie tytułu w pasku; wygląd bez zmian | integracyjny: `hero` jest dzieckiem `app` i zawiera `title`; komplet istniejących testów przechodzi bez zmian | |
+
+#### Etap 1: nowy układ (S17). Zależy od W
+
+| Krok | Zakres | Testy | Zależy od |
+|---|---|---|---|
+| 1.1 | Siatka `#app`; element `sidebar`; panele wyniku w kolumnie bocznej; `--sidebar-width`; nowe wyliczenie `--cell`; gra pośrodku | integracyjny: `sidebar` zawiera pięć elementów w wymaganej kolejności; E2E S17: tytuł nad planszą i przy jej lewej krawędzi, pięć elementów na prawo od planszy w kolejności i bez zachodzenia, górna krawędź panelu wyniku, 81 pól 9×9, brak przewijania i uciętych napisów przy 1024×768 i 1920×1080, gra pośrodku przy 1920×1080, kolejność napisów | W |
+| 1.2 | Okna jako ostatnie dziecko `sidebar`; układ pionowy treści okien; pojawienie się okna niczego nie przesuwa | integracyjny: okno jest ostatnim dzieckiem `sidebar`; E2E S17: pytanie i komunikat o rekordzie pod przyciskiem dźwięku, w oknie przeglądarki, bez uciętych napisów, bez zasłaniania pól, paneli i przycisków; prostokąty pozostałych elementów bez zmian po pojawieniu się okna; sześciocyfrowy wynik mieści się w panelu | 1.1 |
+| 1.3 | Kolory siatki planszy i tła pól. Jeśli etap 2 jest już wdrożony: kryteria S18 i S19 o niezachodzeniu tytułu i kul na planszę, panele, przyciski i okna w nowym układzie | E2E S17: linie niebieskie i jaśniejsze od tła pól, kontrast ≥ 3:1, tło pól ciemne i niebieskie; liczby wyniku żółte | |
+
+Krok 1.3 nie zależy od 1.1 i 1.2 (zmienia tylko trzy zmienne kolorów) i można go zacząć od razu.
+
+#### Etap 2: neonowy tytuł i kaskada kul (S18, S19). Zależy od W
+
+| Krok | Zakres | Testy | Zależy od |
+|---|---|---|---|
+| 2.1 | Brzmienie „KULKI”: `TEXTS.title`, napis zastępczy w szablonie; osiem asercji brzmienia tytułu w `s1-ekran-gry`, `s14-czcionka`, `s14-tablica-wynikow` (2), `s15-efekt-crt`, `start-screen` (2), `tests/integration/single-file.test.js` | E2E S18: tekst tytułu `KULKI`, nazwa karty `Kulki`, napis raz w tekście strony i raz jako nagłówek poziomu 1; E2E S21: pozostałe napisy w dotychczasowym brzmieniu | |
+| 2.2 | Wygląd tytułu: zmienne `--font-title` i `--title-*`, wypełnienie, obrys, głębia, poświata; stałe wymiary `hero` i położenie tytułu w nim; `--cell` uwzględnia wysokość bloku w układzie istniejącym w chwili wdrożenia | E2E S18: czcionka gry, rozmiar ≥ 2 × liczba wyniku, kolory wypełnienia i obrysu, kontrast do tła, poświata żółta i ≥ 2 × poświata podpisu, warstwa głębi, zasięg w oknie i bez zachodzenia na inne elementy przy 1024×768, brak animacji; testy S14 o mieszczeniu się w oknie nadal przechodzą | W, 2.1 |
+| 2.3 | `src/ui/cascade.js` (tablica i `buildCascade`), wstawienie do `hero`, CSS kul, wspólna reguła wypełnienia | jednostkowe: niezmienniki tablicy, `buildCascade` w jsdom daje te same elementy przy każdym wywołaniu; integracyjny: `cascade` w `hero`, `aria-hidden`, bez tekstu; E2E S19: liczba, kolory, rozmiary, okrągłość, wypełnienie identyczne z kulką planszy, położenie względem tytułu i innych elementów (także przy obu oknach), brak napisu i dostępności, identyczność między otwarciami i po ruchu, brak animacji | W |
+| 2.4 | Zachowanie wobec kliknięć i losowania. Jeśli etap 3 jest już wdrożony: kule kaskady wewnątrz krawędzi ekranu (kryterium S20) | E2E S19: kliknięcie kuli bez zaznaczenia; kliknięcie kuli, tytułu i pustego miejsca przy podskakującej kulce; dolosowanie zgodne z zadaną sekwencją po ruchu bez zbicia | 2.3 |
+
+Kroki 2.2 i 2.3 są od siebie niezależne w kodzie (2.2: reguły tytułu, 2.3: nowy moduł i reguły kul), ale oba ustalają geometrię bloku `hero`. Wykonuje się je po kolei: 2.2 ustala wymiary bloku i położenie tytułu, 2.3 rozmieszcza kule wokół niego. Gdy etap 2 powstaje przed etapem 1, blok `hero` leży w dotychczasowym pasku, w którym przy 1024×768 ma do dyspozycji około 354 px szerokości; wyższy blok oznacza mniejsze `--cell`, bo okna leżą wtedy jeszcze pod planszą.
+
+#### Etap 3: wypukły ekran kineskopu (S20). Bez zależności
+
+| Krok | Zakres | Testy | Zależy od |
+|---|---|---|---|
+| 3.1 | Krawędź ekranu i czerń poza nią na `crt`: `--crt-edge-radius`, `--crt-outside-color`; opcjonalne przyciemnienie brzegów | E2E S20: obszar równy oknu przy 1024×768 i 1920×1080, promień narożników, czarne piksele w rogach zrzutu, elementy interfejsu, tytuł i okna wewnątrz krawędzi, 81 pól niezniekształconych, kliknięcia pól w rogach planszy i wszystkich przycisków; istniejące testy S15 przechodzą | |
+| 3.2 | Element `crt-glare` w szablonie i jego CSS | integracyjny: `crt-glare` pusty, z `aria-hidden`, dziecko `body`, `crt` nadal pusty; E2E S20: odblask obecny i w granicach ekranu, bez napisu i poza drzewem dostępności, kliknięcia pól pod odblaskiem działają, widoczny przy `file://` bez żądań sieciowych | |
+| 3.3 | Siła efektu: `--crt-scanline-alpha`, `--crt-glow-blur` ≥ 4 px. Jeśli etap 2 jest już wdrożony: kule kaskady wewnątrz krawędzi ekranu i poświata tytułu ≥ 2 × poświata podpisu | E2E S20: siła linii, poświata napisów, kontrast napisów ≥ 4,5:1, brak animacji i identyczne zrzuty, ten sam wygląd w motywie jasnym i ciemnym oraz przy ograniczonym ruchu | |
+
+Kroki 3.1–3.3 zmieniają ten sam blok arkusza, więc wykonuje się je po kolei albo w jednym PR.
+
+#### Krok R: gra działa jak dotąd (S21). Bez zależności
+
+| Krok | Zakres | Testy | Zależy od |
+|---|---|---|---|
+| R | Testy regresji bez zmian w produkcie | E2E S21: kulki planszy i podglądu okrągłe, kolory bazowe `--c1`…`--c7`, odstęp kulki planszy 12% boku pola (±1 px), brak `box-shadow` i `filter` na kulkach; od kliknięcia kulki do zmiany `data-selected` najwyżej 100 ms | |
+
+Pozostałe kryteria S21 mają już testy i nie wymagają nowych: scenariusze S1–S16 (`tests/e2e/`), dane zapisane przez poprzednią wersję (`s16-gra-dziala-jak-dotad`), jeden plik bez zasobów zewnętrznych (`tests/integration/single-file.test.js`), P1, P2 i P4 (`tests/postdeploy/`, w bramce w trybie atrapy). Kryterium o brzmieniu „Kulki” przed etapem 2 spełniają istniejące asercje, dopóki krok 2.1 ich nie zmieni.
+
+#### Wskazówki do testów
+
+- Rozmiar okna: `page.setViewportSize({ width: 1920, height: 1080 })` w teście; konfiguracja Playwrighta zostaje przy 1024×768.
+- Przed pomiarem układu, tytułu i kul: `await page.evaluate(() => document.fonts.ready)`.
+- Warstwy `text-shadow`: nowy pomocnik `tests/e2e/helpers/shadow.js` rozbija styl obliczony na warstwy (kolor, dwa przesunięcia, rozmycie). Kolor bywa na początku albo na końcu warstwy i może mieć postać `rgb(…)`, `rgba(…)` albo `color(srgb …)` (poświata z `body` używa `color-mix`); przecinki wewnątrz nawiasów nie rozdzielają warstw.
+- Geometria ekranu: nowy pomocnik `tests/e2e/helpers/screen.js` sprawdza, czy punkt leży wewnątrz zaokrąglonego prostokąta `crt`.
+- Piksele zrzutu ekranu: bez nowej zależności. Zrzut z `page.screenshot()` dekoduje się w przeglądarce: obraz z adresu `data:` narysowany na `<canvas>` utworzonym w teście i odczytany przez `getImageData`. Zakaz `<canvas>` dotyczy produktu, nie testów. Rogi bierze się z wymiarów zdekodowanego obrazu, nie okna: projekt `webkit` robi zrzut w podwójnej gęstości (2048×1536 dla okna 1024×768).
+- Gradient linii skanowania: wartości przezroczystości porównywać liczbowo po wyjęciu z `rgba(…)`, nie przez porównanie całego napisu; silniki różnie zapisują pozycje przystanków.
+- Kliknięcie pustego miejsca poza grą: `page.mouse.click(x, y)` w punkcie wyliczonym z prostokątów, nie w stałych współrzędnych.
+- Brak żądań sieciowych i `file://`: jak w testach S14 i S15 (`page.on('request')`, `E2E_FILE_URL`).
+- Motyw i ograniczony ruch: `page.emulateMedia`. Zrzuty ekranu porównuje się tylko w obrębie jednego testu i jednego silnika; nie ma zrzutów wzorcowych w repozytorium.
+- Sposób odczytu z tabel „Co testy odczytują” został sprawdzony próbą w Chromium, Firefoksie i WebKicie przy pisaniu tego planu: wszystkie trzy zwracają kolor i grubość obrysu, warstwy `text-shadow` w tej samej kolejności i postaci, promień krawędzi w pikselach (około 30,72 px dla `4vmin` przy 1024×768), przezroczystość linii jako `rgba(0, 0, 0, 0.3)`, identyczne `background-image` dla kul różnej wielkości i czarne piksele w rogach zrzutu; zewnętrzny cień elementu `crt` nie powoduje przewijania.
+- Bez stałych opóźnień; przebiegi równoległe z `--workers 2` i własnym `E2E_RUN_ID`.
+
+#### Miejsca wspólne przy pracy równoległej
+
+- `src/styles.css`: zmienia go każdy krok poza R. Etap 1 zmienia reguły układu (`#app`, pasek, kolumna, okna) i trzy zmienne kolorów planszy. Etap 2 zmienia regułę `h1`, dopisuje blok „tytuł i kaskada” oraz jeden selektor do reguły wypełnienia kulek. Etap 3 zmienia wyłącznie blok „efekt CRT” i zmienne `--crt-*`. Wspólna dla etapów 1 i 2 jest tylko zmienna `--cell`: drugi w kolejności uwzględnia w niej wynik pierwszego.
+- `src/ui/app.js`: krok W (opakowanie tytułu), 1.1 i 1.2 (budowanie układu, miejsce wstawiania okien), 2.3 (jedno wywołanie `buildCascade`). Dane i budowanie kaskady są w `cascade.js`, żeby w `app.js` została jedna linia.
+- `src/index.html`: krok 2.1 (napis zastępczy) i 3.2 (`crt-glare`); różne wiersze.
+- `src/ui/texts.js` i asercje brzmienia tytułu: tylko krok 2.1.
+- `tests/e2e/helpers/`: nowe pomocniki w nowych plikach (`shadow.js`, `screen.js`), po jednym na temat; istniejących się nie przerabia.
+- `src/test-api.js`, `src/game/`, `src/storage/`, `src/audio/`, `tools/`, `scripts/`, Compose i workflow: żaden krok ich nie zmienia.
