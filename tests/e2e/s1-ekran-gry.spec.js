@@ -16,7 +16,7 @@ test.describe('S1: game screen', () => {
 
     const text = await app.innerText();
     expect(text.replace(/\s+/g, ' ').trim()).toBe(
-      'Kulki Wynik 0 Najlepszy wynik 0 Następne kulki Nowa gra Dźwięk: włączony',
+      'KULKI Wynik 0 Najlepszy wynik 0 Następne kulki Nowa gra Dźwięk: włączony',
     );
   });
 

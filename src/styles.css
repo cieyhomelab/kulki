@@ -10,13 +10,15 @@
   --font-small: 8px;
   --font-medium: 16px;
   --font-large: 24px;
+  --font-title: 48px;
   --sidebar-width: 230px;
   --layout-gap: 24px;
-  --hero-reserve: 104px;
+  --hero-width: 352px;
+  --hero-height: 104px;
   --safe-margin: 24px;
   --cell: min(
     64px,
-    calc((100vh - 2 * var(--safe-margin) - var(--hero-reserve) - 12px - 20px) / 9),
+    calc((100vh - 2 * var(--safe-margin) - var(--hero-height) - 12px - 20px) / 9),
     calc((100vw - 2 * var(--safe-margin) - var(--sidebar-width) - var(--layout-gap) - 20px) / 9)
   );
   --page-bg: #05071a;
@@ -35,6 +37,13 @@
   --press-offset: 3px;
   --selection-color: var(--neon-yellow);
   --reject-color: var(--neon-magenta);
+  --title-fill: #5a8bff;
+  --title-stroke-color: #ffe600;
+  --title-stroke-width: 3px;
+  --title-depth-color: #1b2f8a;
+  --title-depth-offset: 4px;
+  --title-glow-color: #ffe600;
+  --title-glow-blur: 16px;
   --c1: #e53935;
   --c2: #fb8c00;
   --c3: #fdd835;
@@ -72,6 +81,11 @@ body {
   grid-column: 1;
   grid-row: 1;
   justify-self: start;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  width: var(--hero-width);
+  height: var(--hero-height);
 }
 
 /* The column is as wide as --sidebar-width and sits at the board's top edge; a dialog is its last child. */
@@ -87,10 +101,24 @@ body {
   width: var(--sidebar-width);
 }
 
+/* Neon title: blue fill, yellow outline drawn under the fill, hard depth layers and a yellow glow. */
 h1 {
-  color: var(--neon-green);
+  width: fit-content;
   margin: 0;
-  font-size: var(--font-large);
+  padding: 0;
+  border: 0;
+  font-size: var(--font-title);
+  font-weight: normal;
+  line-height: 1;
+  color: var(--title-fill);
+  -webkit-text-stroke: var(--title-stroke-width) var(--title-stroke-color);
+  paint-order: stroke fill;
+  text-shadow:
+    1px 1px 0 var(--title-depth-color),
+    2px 2px 0 var(--title-depth-color),
+    3px 3px 0 var(--title-depth-color),
+    var(--title-depth-offset) var(--title-depth-offset) 0 var(--title-depth-color),
+    0 0 var(--title-glow-blur) var(--title-glow-color);
 }
 
 .stat {

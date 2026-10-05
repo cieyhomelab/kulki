@@ -111,4 +111,47 @@ test.describe('S21: the game works as before', () => {
     expect(elapsed).toBeLessThanOrEqual(100);
     await expect(page.getByTestId('cell-4-4')).toHaveAttribute('data-selected', 'true');
   });
+  test('S21: all texts other than the title keep their wording', async ({ page }) => {
+    await arrange(page, {
+      board: Array(9).fill('.........'),
+      score: 5,
+      best: 10,
+      preview: [1, 2, 3],
+    });
+    const text = () =>
+      page.getByTestId('app').evaluate((el) => /** @type {HTMLElement} */ (el).innerText);
+    const flat = async () => (await text()).replace(/\s+/g, ' ');
+    const start = await flat();
+    for (const label of [
+      'Wynik',
+      'Najlepszy wynik',
+      'Następne kulki',
+      'Nowa gra',
+      'Dźwięk: włączony',
+    ]) {
+      expect(start).toContain(label);
+    }
+    await page.getByTestId('new-game').click();
+    await expect(page.getByTestId('confirm-dialog')).toContainText(
+      'Rozpocząć nową grę? Obecna rozgrywka zostanie utracona.',
+    );
+    await expect(page.getByTestId('confirm-yes')).toHaveText('Tak');
+    await expect(page.getByTestId('confirm-no')).toHaveText('Nie');
+    await page.getByTestId('confirm-no').click();
+    expect(await page.title()).toBe('Kulki');
+    await arrange(page, {
+      board: Array.from({ length: 9 }, (_, r) =>
+        Array.from({ length: 9 }, (_, c) => String(((3 * r + c) % 7) + 1)).join(''),
+      ),
+      score: 50,
+      best: 10,
+      over: true,
+      record: true,
+    });
+    const over = (await page.getByTestId('game-over').innerText()).replace(/\s+/g, ' ');
+    expect(over).toContain('Koniec gry');
+    expect(over).toContain('Twój wynik: 50');
+    expect(over).toContain('Nowy rekord!');
+    await expect(page.getByTestId('game-over-new-game')).toHaveText('Nowa gra');
+  });
 });

@@ -26,7 +26,7 @@ Od specyfikacji S10–S16, po wdrożeniu odpowiednich kroków, także: element k
 
 Od specyfikacji S17–S21, po wdrożeniu odpowiednich kroków, także: identyfikatory `hero`, `sidebar`, `cascade`, `cascade-ball` (z atrybutem `data-color`) i `crt-glare`; położenie okien jako ostatniego dziecka `sidebar`; zmienne CSS `--title-fill`, `--title-stroke-color`, `--title-stroke-width`, `--title-depth-color`, `--title-depth-offset`, `--title-glow-color`, `--title-glow-blur`, `--crt-edge-radius`, `--crt-scanline-alpha` i `--crt-glow-blur`; sposób zapisu wyglądu tytułu (obrys w `-webkit-text-stroke`, głębia i poświata w `text-shadow`) i krawędzi ekranu (`border-radius` elementu `crt`), bo z nich czytają testy.
 
-**Brzmienie tytułu.** Tytuł na ekranie brzmi „Kulki” do wdrożenia kroku 2.1 specyfikacji S17–S21, a po nim „KULKI”. To jedyna zaplanowana zmiana brzmienia napisu: krok 2.1 zmienia `src/ui/texts.js`, napis zastępczy w szablonie i oczekiwane brzmienie tytułu w istniejących testach w jednym PR. Nazwa karty przeglądarki (`<title>`) pozostaje „Kulki”.
+**Brzmienie tytułu.** Tytuł na ekranie brzmi „KULKI” (krok 2.1 specyfikacji S17–S21 wdrożony; wcześniej „Kulki”). To jedyna zaplanowana zmiana brzmienia napisu: krok 2.1 zmienia `src/ui/texts.js`, napis zastępczy w szablonie i oczekiwane brzmienie tytułu w istniejących testach w jednym PR. Nazwa karty przeglądarki (`<title>`) pozostaje „Kulki”.
 
 - **Zmiana łamiąca:** zmiana nazwy albo usunięcie identyfikatora lub atrybutu, zmiana zbioru jego wartości albo znaczenia (np. `data-bouncing="true"` przy nieruchomej kulce).
 - **Ścieżka:** jak w punkcie 2. Klasy CSS i struktura zagnieżdżenia nie są kontraktem.

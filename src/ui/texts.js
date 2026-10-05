@@ -1,6 +1,6 @@
 /** All player-visible strings. The interface is Polish only. */
 export const TEXTS = Object.freeze({
-  title: 'Kulki',
+  title: 'KULKI',
   score: 'Wynik',
   bestScore: 'Najlepszy wynik',
   nextBalls: 'Następne kulki',

@@ -165,7 +165,7 @@ test.describe('S14: scoreboard and 1024×768 layout', () => {
   test('S14: the scoreboard elements exist and keep their ids', async ({ page }) => {
     await arrange(page, { board: rows(BALLS), score: 7, best: 9, preview: [1, 2, 3] });
 
-    await expect(page.getByTestId('title')).toHaveText('Kulki');
+    await expect(page.getByTestId('title')).toHaveText('KULKI');
     expect(await page.getByTestId('title').evaluate((el) => el.tagName)).toBe('H1');
     await expect(page.getByTestId('score-label')).toHaveText('Wynik');
     await expect(page.getByTestId('best-score-label')).toHaveText('Najlepszy wynik');
@@ -185,7 +185,7 @@ test.describe('S14: scoreboard and 1024×768 layout', () => {
 
     const text = await page.getByTestId('app').innerText();
     expect(text.split('\n').filter(Boolean)).toEqual([
-      'Kulki',
+      'KULKI',
       'Wynik',
       '7',
       'Najlepszy wynik',

@@ -82,12 +82,12 @@ for (const size of [
       expect(Math.abs(left - right)).toBeLessThanOrEqual(cell.width);
     });
 
-    test('S17: visible text keeps its order and the title reads Kulki', async ({ page }) => {
+    test('S17: visible text keeps its order and the title reads KULKI', async ({ page }) => {
       const text = await page.locator('body').innerText();
       expect(text.replace(/\s+/g, ' ').trim()).toBe(
-        'Kulki Wynik 0 Najlepszy wynik 0 Następne kulki Nowa gra Dźwięk: włączony',
+        'KULKI Wynik 0 Najlepszy wynik 0 Następne kulki Nowa gra Dźwięk: włączony',
       );
-      await expect(page.getByTestId('title')).toHaveText('Kulki');
+      await expect(page.getByTestId('title')).toHaveText('KULKI');
     });
   });
 }
