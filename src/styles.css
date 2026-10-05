@@ -103,11 +103,40 @@ h1 {
   background: var(--cell-bg);
   border: 1px solid var(--cell-border);
   box-sizing: border-box;
+  outline-style: none;
 }
 
-.cell[data-selected='true'] {
+/* Still highlight only when the ball does not bounce (reduced motion). */
+.cell[data-selected='true'][data-bouncing='false'] {
   outline: 3px solid var(--selection-color);
   outline-offset: -3px;
+}
+
+.cell[data-bouncing='true'] > .ball {
+  transform-origin: 50% 100%;
+  animation: bounce var(--bounce-ms) linear infinite;
+}
+
+@keyframes bounce {
+  0% {
+    transform: translateY(0) scale(1.1, 0.88);
+    animation-timing-function: ease-out;
+  }
+  12% {
+    transform: translateY(0) scale(1, 1);
+    animation-timing-function: ease-out;
+  }
+  50% {
+    transform: translateY(-14%) scale(1, 1);
+    animation-timing-function: ease-in;
+  }
+  88% {
+    transform: translateY(0) scale(1, 1);
+    animation-timing-function: ease-out;
+  }
+  100% {
+    transform: translateY(0) scale(1.1, 0.88);
+  }
 }
 
 .ball,

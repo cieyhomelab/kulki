@@ -4,8 +4,10 @@ import { gameFromSnapshot, newGame, playTurn } from '../game/game.js';
 import { readGame, writeGame } from '../storage/game-save.js';
 import { readBestScore, writeBestScore } from '../storage/best-score.js';
 import { loadSoundOn, saveSoundOn } from '../storage/sound-setting.js';
+import { bouncingCell } from './bounce.js';
+import { createMotion } from './motion.js';
 import { TEXTS } from './texts.js';
-import { CLEAR_MS, REJECT_MS, SPAWN_MS, moveStepMs } from './timing.js';
+import { BOUNCE_CYCLE_MS, CLEAR_MS, REJECT_MS, SPAWN_MS, moveStepMs } from './timing.js';
 
 const BOARD_SIZE = 9;
 const PREVIEW_SIZE = 3;
@@ -67,6 +69,7 @@ function buildBoard(doc) {
         'data-testid': `cell-${row}-${col}`,
         'data-color': '0',
         'data-selected': 'false',
+        'data-bouncing': 'false',
       });
       cell.append(el(doc, 'span', { class: 'ball', 'data-testid': `ball-${row}-${col}` }));
       board.append(cell);
@@ -208,11 +211,24 @@ export function startApp(doc, rng) {
     selected = null;
   }
 
+  boardEl.style.setProperty('--bounce-ms', `${BOUNCE_CYCLE_MS}ms`);
+  const motion = createMotion(/** @type {Window} */ (doc.defaultView));
+
+  /** Makes exactly the selected ball bounce, unless the player asked for reduced motion. */
+  function syncBounce() {
+    const bouncing = bouncingCell(selected, motion.isReduced());
+    cells.forEach((cell, index) => {
+      cell.dataset.bouncing = String(index === bouncing);
+    });
+  }
+  motion.onChange(syncBounce);
+
   function render() {
     game.board.forEach((color, index) => {
       cells[index].dataset.color = String(color);
       cells[index].dataset.selected = String(index === selected);
     });
+    syncBounce();
     byTestId('score').textContent = String(game.score);
     byTestId('best-score').textContent = String(Math.max(best, game.score));
     app.querySelectorAll('[data-testid="preview-ball"]').forEach((ball, i) => {
@@ -422,6 +438,7 @@ export function startApp(doc, rng) {
     raiseBest(game.score);
     // Hold the ball on its start cell until the first step.
     cells[start].dataset.selected = 'false';
+    syncBounce();
     playEvents(turn.events, before.board, before.score, bestBefore);
   }
 
