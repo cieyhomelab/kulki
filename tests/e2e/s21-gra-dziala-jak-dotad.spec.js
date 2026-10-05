@@ -138,7 +138,7 @@ test.describe('S21: the game works as before', () => {
     await expect(page.getByTestId('confirm-yes')).toHaveText('Tak');
     await expect(page.getByTestId('confirm-no')).toHaveText('Nie');
     await page.getByTestId('confirm-no').click();
-    await expect(page.locator('title')).toHaveText('Kulki');
+    expect(await page.title()).toBe('Kulki');
     await arrange(page, {
       board: Array.from({ length: 9 }, (_, r) =>
         Array.from({ length: 9 }, (_, c) => String(((3 * r + c) % 7) + 1)).join(''),
