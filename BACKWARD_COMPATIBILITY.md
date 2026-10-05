@@ -1,6 +1,6 @@
 # Chronione kontrakty
 
-Powierzchnie, od których zależą gracze, testy albo inni agenci. Zmiana którejkolwiek wymaga ścieżki opisanej przy niej. Pełne definicje są w sekcjach technicznych [specyfikacji gry](.ai/specs/2026-10-04-gra-w-kulki.md) i [specyfikacji publikacji](.ai/specs/2026-10-04-publikacja-na-github-pages.md); tu jest lista i zasady zmian.
+Powierzchnie, od których zależą gracze, testy albo inni agenci. Zmiana którejkolwiek wymaga ścieżki opisanej przy niej. Pełne definicje są w sekcjach technicznych [specyfikacji gry](.ai/specs/2026-10-04-gra-w-kulki.md) [specyfikacji publikacji](.ai/specs/2026-10-04-publikacja-na-github-pages.md) i [specyfikacji podskakującej kulki i wyglądu retro](.ai/specs/2026-10-05-podskakujaca-kulka-i-wyglad-retro.md); tu jest lista i zasady zmian.
 
 Projekt nie ma API sieciowego, bazy danych, CLI ani publikowanego pakietu.
 
@@ -16,13 +16,15 @@ Klucze `kulki.game.v1`, `kulki.best.v1`, `kulki.sound.v1` i kształt ich wartoś
 Metody `setState`, `setRandom`, `getState`, `getSoundLog` oraz kolejność, w jakiej gra zużywa wartości losowe.
 
 - **Zmiana łamiąca:** usunięcie albo zmiana nazwy metody lub pola, zmiana formatu planszy, zmiana kolejności albo liczby losowań w turze.
-- **Ścieżka:** dodawanie pól i metod jest bezpieczne. Zmiana łamiąca wymaga aktualizacji sekcji technicznej specyfikacji i wszystkich testów w tym samym PR.
+- **Ścieżka:** dodawanie metod jest bezpieczne. Nowe pole w `getState()` nie łamie kontraktu, ale istniejące testy porównują cały zwracany obiekt, więc wymaga zmiany tych testów w tym samym PR; informacje dla testów dodawaj raczej jako atrybuty DOM. Zmiana łamiąca wymaga aktualizacji sekcji technicznej specyfikacji i wszystkich testów w tym samym PR.
 
 ## 3. Kontrakt DOM dla testów
 
 Wartości `data-testid` oraz atrybuty stanu (`data-color`, `data-selected`, `data-animating`, `data-rejected`, `aria-pressed` przycisku dźwięku).
 
-- **Zmiana łamiąca:** zmiana nazwy albo usunięcie identyfikatora lub atrybutu, zmiana zbioru jego wartości.
+Od specyfikacji S10–S16, po wdrożeniu odpowiednich kroków, także: element kulki `ball-{wiersz}-{kolumna}` w każdym polu, atrybuty `data-bouncing` (pole) i `data-bounce-cycles` (plansza), identyfikatory `title`, `score-panel`, `score-label`, `best-score-panel`, `best-score-label`, `preview-label`, `crt`, zmienne CSS `--c1`…`--c7` z kolorami kulek, nazwa rodziny czcionki `Press Start 2P` oraz brzmienie i kolejność napisów widocznych na ekranie.
+
+- **Zmiana łamiąca:** zmiana nazwy albo usunięcie identyfikatora lub atrybutu, zmiana zbioru jego wartości albo znaczenia (np. `data-bouncing="true"` przy nieruchomej kulce).
 - **Ścieżka:** jak w punkcie 2. Klasy CSS i struktura zagnieżdżenia nie są kontraktem.
 
 ## 4. Skrypty i bramka walidacji
@@ -36,7 +38,9 @@ Nazwy i zachowanie `scripts/lint.sh`, `test-unit.sh`, `test-integration.sh`, `te
 
 Jeden plik `dist/index.html`, działający z `file://` i z hostingu statycznego, bez sieci.
 
-- **Zmiana łamiąca:** drugi plik, zależność uruchomieniowa, zasób z sieci, wymaganie serwera.
+Czcionka gry jest częścią tego pliku (adres `data:`); jej plik źródłowy `src/fonts/PressStart2P-Regular.ttf` jest niezmienionym oryginałem, a obok niego leży licencja `OFL.txt`.
+
+- **Zmiana łamiąca:** drugi plik, zależność uruchomieniowa, zasób z sieci, wymaganie serwera; zmiana, przycięcie albo przepakowanie pliku czcionki, usunięcie licencji.
 - **Ścieżka:** brak. To wymaganie właściciela; zmiana wymaga nowej specyfikacji.
 
 ## 6. Publikacja
