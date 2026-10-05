@@ -5,6 +5,7 @@ import { readGame, writeGame } from '../storage/game-save.js';
 import { readBestScore, writeBestScore } from '../storage/best-score.js';
 import { loadSoundOn, saveSoundOn } from '../storage/sound-setting.js';
 import { bouncingCell } from './bounce.js';
+import { buildCascade } from './cascade.js';
 import { createMotion } from './motion.js';
 import { TEXTS } from './texts.js';
 import { BOUNCE_CYCLE_MS, CLEAR_MS, REJECT_MS, SPAWN_MS, moveStepMs } from './timing.js';
@@ -149,7 +150,7 @@ export function startApp(doc, rng) {
   doc.addEventListener('click', () => sounds.unlock(), { capture: true });
 
   const hero = el(doc, 'div', { 'data-testid': 'hero', class: 'hero' });
-  hero.append(el(doc, 'h1', { 'data-testid': 'title' }, TEXTS.title));
+  hero.append(el(doc, 'h1', { 'data-testid': 'title' }, TEXTS.title), buildCascade(doc));
 
   const sidebar = el(doc, 'div', { class: 'sidebar', 'data-testid': 'sidebar' });
   sidebar.append(

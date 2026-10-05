@@ -83,6 +83,7 @@ body {
   justify-self: start;
   display: flex;
   align-items: center;
+  position: relative;
   box-sizing: border-box;
   width: var(--hero-width);
   height: var(--hero-height);
@@ -201,7 +202,8 @@ h1 {
 }
 
 .ball,
-.preview-ball {
+.preview-ball,
+.cascade-ball {
   position: absolute;
   inset: 12%;
   border-radius: 50%;
@@ -211,6 +213,14 @@ h1 {
     var(--ball) 45%,
     color-mix(in srgb, var(--ball) 55%, #000) 100%
   );
+}
+
+.cascade-ball {
+  inset: auto;
+  left: var(--x);
+  top: var(--y);
+  width: var(--size);
+  height: var(--size);
 }
 
 .cell[data-color='0'] > .ball {
