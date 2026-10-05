@@ -228,3 +228,17 @@ describe('saved game', () => {
     expect(document.querySelector('[data-testid="score"]')?.textContent).toBe('0');
   });
 });
+
+describe('embedded game font', () => {
+  it('has exactly one @font-face rule, with a data: address and no licence text', async () => {
+    const html = await readBuiltHtml();
+    const css = new JSDOM(html).window.document.querySelector('style')?.textContent ?? '';
+
+    expect(css.match(/@font-face/g)).toHaveLength(1);
+    expect(css).toMatch(/font-family:\s*'Press Start 2P'/);
+    expect(css).toMatch(/url\('data:font\/ttf;base64,[A-Za-z0-9+/=]+'\)\s*format\('truetype'\)/);
+    expect(css).toMatch(/font-display:\s*block/);
+    expect(css).not.toContain('./fonts/');
+    expect(html).not.toMatch(/OFL|SIL OPEN FONT/);
+  });
+});
