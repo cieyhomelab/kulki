@@ -1,6 +1,6 @@
 # Reguły przeglądu kodu
 
-Reguły specyficzne dla tego repozytorium. Uzupełniają wbudowaną checklistę `om-code-review`; nie zastępują jej. Kontekst: [AGENTS.md](AGENTS.md), [specyfikacja gry](.ai/specs/2026-10-04-gra-w-kulki.md), [specyfikacja publikacji](.ai/specs/2026-10-04-publikacja-na-github-pages.md), [ADR 0001](docs/adr/0001-stos-technologiczny.md), [ADR 0002](docs/adr/0002-publikacja-na-github-pages.md), [specyfikacja podskakującej kulki i wyglądu retro](.ai/specs/2026-10-05-podskakujaca-kulka-i-wyglad-retro.md), [ADR 0003](docs/adr/0003-podskakujaca-kulka-i-wyglad-retro.md).
+Reguły specyficzne dla tego repozytorium. Uzupełniają wbudowaną checklistę `om-code-review`; nie zastępują jej. Kontekst: [AGENTS.md](AGENTS.md), [specyfikacja gry](.ai/specs/2026-10-04-gra-w-kulki.md), [specyfikacja publikacji](.ai/specs/2026-10-04-publikacja-na-github-pages.md), [ADR 0001](docs/adr/0001-stos-technologiczny.md), [ADR 0002](docs/adr/0002-publikacja-na-github-pages.md), [specyfikacja podskakującej kulki i wyglądu retro](.ai/specs/2026-10-05-podskakujaca-kulka-i-wyglad-retro.md), [ADR 0003](docs/adr/0003-podskakujaca-kulka-i-wyglad-retro.md), [specyfikacja ekranu kineskopu, neonowego tytułu i nowego układu](.ai/specs/2026-10-05-ekran-kineskopu-neonowy-tytul-i-nowy-uklad.md), [ADR 0004](docs/adr/0004-ekran-kineskopu-neonowy-tytul-i-nowy-uklad.md).
 
 ## Priorytety
 
@@ -66,7 +66,25 @@ Reguły specyficzne dla tego repozytorium. Uzupełniają wbudowaną checklistę 
 - [ ] Element `crt` jest pusty, ma `aria-hidden="true"`, `pointer-events: none`, leży poza `#app` i nie ma animacji.
 - [ ] Brzmienie i kolejność napisów w DOM bez zmian; brak `text-transform` i napisów w `content`.
 - [ ] Okna pytania i końca gry nie zasłaniają pól planszy ani przycisków; całość mieści się w 1024×768 także z komunikatem o rekordzie.
-- [ ] `window.__kulki` i `src/ui/texts.js` nie są zmienione; żadna asercja w testach S1–S9 nie jest zmieniona.
+- [ ] `window.__kulki` i `src/ui/texts.js` nie są zmienione; żadna asercja w testach S1–S9 nie jest zmieniona. Wyjątek: krok 2.1 specyfikacji S17–S21 (patrz niżej).
+
+### Układ, tytuł, kaskada i ekran kineskopu (S17–S21)
+
+- [ ] Panele, oba przyciski i okna są w elemencie `sidebar`, w kolejności wynik, najlepszy wynik, podgląd, „Nowa gra”, dźwięk, okno; okno jest ostatnim dzieckiem i jego pojawienie się nie przesuwa żadnego elementu.
+- [ ] Kolejność napisów w DOM bez zmian; układ robi siatka CSS, nie `order` ani pozycjonowanie bezwzględne paneli.
+- [ ] Całość mieści się bez przewijania przy 1024×768 i 1920×1080, także z komunikatem o rekordzie; elementy nie wpadają w zaokrąglone rogi ekranu.
+- [ ] Tytuł to jeden `h1` z jednym węzłem tekstu `KULKI` (z `src/ui/texts.js`); `<title>` strony to nadal `Kulki`. Brak `text-transform`, powielonych napisów i pseudoelementów z treścią.
+- [ ] Obrys tytułu to `-webkit-text-stroke` z `paint-order: stroke fill`; głębia to warstwy `text-shadow` bez rozmycia w dół i w prawo; poświata to warstwa z rozmyciem ≥ 16 px. Wartości są zmiennymi `--title-*` bez `color-mix`.
+- [ ] Zmianę brzmienia tytułu zawiera tylko PR kroku 2.1; zmienia on wyłącznie oczekiwane brzmienie tytułu w istniejących asercjach, nic więcej.
+- [ ] Zmieniona asercja S14–S16 jest wymieniona w opisie PR z wierszem tabeli „Zmiany względem wcześniejszych specyfikacji”, z którego wynika.
+- [ ] Kule kaskady pochodzą z zamrożonej tablicy w `src/ui/cascade.js`; moduł nie używa `rng`, `Math.random` ani czasu; liczba losowań w turze się nie zmieniła.
+- [ ] Kula kaskady ma `data-testid="cascade-ball"` i `data-color`; wypełnienie pochodzi z tej samej reguły CSS co kulki gry (bez drugiej kopii gradientu); kontener `cascade` ma `aria-hidden="true"`.
+- [ ] Tytuł, kule i tło nie mają obsługi kliknięć; kliknięcie poza planszą nie odznacza kulki.
+- [ ] Krawędź ekranu i czerń poza nią są na elemencie `crt` (`border-radius` w `vmin`, zewnętrzny `box-shadow` bez rozmycia); `crt` pozostaje pusty.
+- [ ] `crt-glare` jest pusty, ma `aria-hidden="true"`, `position: fixed`, `pointer-events: none`, leży w `body` obok `crt`.
+- [ ] `--crt-scanline-alpha` jest w przedziale 0,2–0,4 i faktycznie wyznacza kolor linii; `--crt-glow-blur` ≥ 4 px.
+- [ ] Brak `transform`, `filter`, `perspective` i `backdrop-filter` na `#app`, planszy i ich przodkach; brak animacji i `transition` na tytule, kulach, `crt` i `crt-glare`.
+- [ ] Nie ma obrazów, SVG ani `<canvas>` w produkcie; kulki planszy i podglądu nie dostały cienia ani poświaty.
 
 ### Zapis i błędy
 
@@ -114,7 +132,7 @@ Reguły specyficzne dla tego repozytorium. Uzupełniają wbudowaną checklistę 
 ## Ważność uwag
 
 - **Blocker:** złamane kryterium akceptacji; produkt przestaje być jednym plikiem albo sięga do sieci; publikacja możliwa bez zielonych testów, spoza `main` albo z plikiem innym niż `index.html`; uprawnienia do zapisu szersze niż opisane wyżej; utrata albo błędna interpretacja zapisanych danych gracza; czerwona bramka walidacji; sekret w repozytorium; wyłączony test.
-- **Major:** zmieniona asercja w istniejącym teście S1–S9 przy pracy nad S10–S16; zmieniony albo przycięty plik czcionki; brak testu dla zmienionego zachowania; złamana granica modułów; zmiana chronionego kontraktu bez opisanej ścieżki; test niedeterministyczny albo ze stałym opóźnieniem; tekst nie po polsku.
+- **Major:** zmieniona asercja w istniejącym teście S1–S9 przy pracy nad S10–S16; zmieniona asercja S1–S13 inna niż brzmienie tytułu w kroku 2.1 specyfikacji S17–S21 albo zmieniona asercja S14–S16 bez wskazanego wiersza tabeli zmian; kaskada kul zużywająca losowania gry; zmieniony albo przycięty plik czcionki; brak testu dla zmienionego zachowania; złamana granica modułów; zmiana chronionego kontraktu bez opisanej ścieżki; test niedeterministyczny albo ze stałym opóźnieniem; tekst nie po polsku.
 - **Minor:** nazewnictwo, brak JSDoc, powtórzenia, czytelność.
 
 Blocker i major oznaczają `changes-requested`. Same minory nie blokują.
