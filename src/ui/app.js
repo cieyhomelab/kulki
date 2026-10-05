@@ -148,12 +148,11 @@ export function startApp(doc, rng) {
   // Browsers allow audio only after a player gesture; the first click creates the context.
   doc.addEventListener('click', () => sounds.unlock(), { capture: true });
 
+  const hero = el(doc, 'div', { 'data-testid': 'hero', class: 'hero' });
+  hero.append(el(doc, 'h1', { 'data-testid': 'title' }, TEXTS.title));
+
   const header = el(doc, 'header', { class: 'topbar' });
-  header.append(
-    el(doc, 'h1', { 'data-testid': 'title' }, TEXTS.title),
-    statBox(doc, TEXTS.score, 'score'),
-    statBox(doc, TEXTS.bestScore, 'best-score'),
-  );
+  header.append(statBox(doc, TEXTS.score, 'score'), statBox(doc, TEXTS.bestScore, 'best-score'));
 
   const side = el(doc, 'div', { class: 'controls' });
   side.append(
@@ -170,7 +169,7 @@ export function startApp(doc, rng) {
   const main = el(doc, 'div', { class: 'layout' });
   main.append(buildBoard(doc), side);
 
-  root.replaceChildren(header, main);
+  root.replaceChildren(hero, header, main);
 
   /** @type {import('../game/game.js').GameState} */
   let game = readGame() ?? newGame(rng);
