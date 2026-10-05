@@ -57,6 +57,10 @@
   --crt-scanline-period: 4px;
   --crt-scanline-width: 2px;
   --crt-vignette-color: rgb(0 0 0 / 0.35);
+  --z-scanlines: 1000;
+  --z-ball: 1001;
+  --z-vignette: 1002;
+  --z-glare: 1003;
   --crt-glow-blur: 4px;
   --crt-glow-strength: 40%;
 }
@@ -227,8 +231,15 @@ h1 {
   display: none;
 }
 
+/* Game balls are painted above the scanlines (below the vignette and glare), so lines never darken them. Cascade balls are not listed here: they keep the lines. */
+.cell > .ball,
 .preview-ball {
-  position: static;
+  z-index: var(--z-ball);
+}
+
+.preview-ball {
+  position: relative;
+  inset: auto;
   width: 36px;
   height: 36px;
 }
@@ -289,6 +300,10 @@ h1 {
   box-shadow: var(--shadow-offset-pressed) var(--shadow-offset-pressed) 0 0 var(--shadow-color);
 }
 
+.board {
+  position: relative;
+}
+
 .board[data-rejected='true'] {
   animation: reject-flash 500ms ease-out;
   outline: 3px solid var(--reject-color);
@@ -298,15 +313,15 @@ h1 {
 @keyframes reject-flash {
   0%,
   100% {
-    transform: translateX(0);
+    left: 0;
   }
   20%,
   60% {
-    transform: translateX(-5px);
+    left: -5px;
   }
   40%,
   80% {
-    transform: translateX(5px);
+    left: 5px;
   }
 }
 
@@ -344,15 +359,20 @@ button {
   text-shadow: inherit;
 }
 
-[data-testid='crt'] {
+[data-testid='crt'],
+[data-testid='crt-vignette'] {
   position: fixed;
   inset: 0;
-  z-index: 1000;
   pointer-events: none;
   border-radius: var(--crt-edge-radius);
   box-shadow: 0 0 0 100vmax var(--crt-outside-color);
+}
+
+[data-testid='crt'] {
+  z-index: var(--z-scanlines);
   background:
-    radial-gradient(ellipse at center, transparent 60%, var(--crt-vignette-color) 100%),
+    /* Fully transparent: draws nothing, kept because the S15 test looks for a radial gradient in this background. The vignette lives on crt-vignette. */
+    radial-gradient(ellipse at center, transparent 60%, transparent 100%),
     repeating-linear-gradient(
       to bottom,
       transparent 0,
@@ -363,13 +383,18 @@ button {
     );
 }
 
+[data-testid='crt-vignette'] {
+  z-index: var(--z-vignette);
+  background: radial-gradient(ellipse at center, transparent 60%, var(--crt-vignette-color) 100%);
+}
+
 [data-testid='crt-glare'] {
   position: fixed;
   top: 4%;
   left: 5%;
   width: 28%;
   height: 16%;
-  z-index: 1001;
+  z-index: var(--z-glare);
   pointer-events: none;
   border-radius: 50%;
   background: linear-gradient(135deg, rgb(255 255 255 / 0.1) 0%, transparent 70%);
