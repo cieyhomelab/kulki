@@ -22,6 +22,9 @@
   --neon-magenta: #ff3df0;
   --neon-yellow: #ffe600;
   --shadow-color: #000000;
+  --shadow-offset: 4px;
+  --shadow-offset-pressed: 1px;
+  --press-offset: 3px;
   --selection-color: var(--neon-yellow);
   --reject-color: var(--neon-magenta);
   --c1: #e53935;
@@ -76,6 +79,8 @@ h1 {
   padding: 10px 14px;
   background-color: var(--panel-bg);
   border: 3px solid var(--neon-cyan);
+  border-radius: 0;
+  box-shadow: var(--shadow-offset) var(--shadow-offset) 0 0 var(--shadow-color);
 }
 
 .stat-label {
@@ -102,13 +107,14 @@ h1 {
   gap: 2px;
   padding: 2px;
   background: var(--board-bg);
-  border-radius: 6px;
+  border-radius: 0;
 }
 
 .cell {
   position: relative;
   background: var(--cell-bg);
   border: 1px solid var(--cell-border);
+  border-radius: 0;
   box-sizing: border-box;
   outline-style: none;
 }
@@ -202,6 +208,12 @@ h1 {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  background-color: var(--panel-bg);
+  border: 3px solid var(--neon-cyan);
+  border-radius: 0;
+  box-shadow: var(--shadow-offset) var(--shadow-offset) 0 0 var(--shadow-color);
 }
 
 .preview-balls {
@@ -217,6 +229,13 @@ h1 {
   background-color: var(--panel-bg);
   color: var(--neon-cyan);
   border: 2px solid var(--neon-cyan);
+  border-radius: 0;
+  box-shadow: var(--shadow-offset) var(--shadow-offset) 0 0 var(--shadow-color);
+}
+
+.button:active {
+  transform: translate(var(--press-offset), var(--press-offset));
+  box-shadow: var(--shadow-offset-pressed) var(--shadow-offset-pressed) 0 0 var(--shadow-color);
 }
 
 .board[data-rejected='true'] {
@@ -254,7 +273,8 @@ h1 {
   gap: 12px;
   padding: 10px 14px;
   border: 2px solid var(--cell-border);
-  border-radius: 6px;
+  border-radius: 0;
+  box-shadow: var(--shadow-offset) var(--shadow-offset) 0 0 var(--shadow-color);
   background-color: var(--panel-bg);
   color: var(--text-color);
   border-color: var(--neon-magenta);
