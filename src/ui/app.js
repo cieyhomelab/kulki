@@ -58,6 +58,7 @@ function buildBoard(doc) {
     class: 'board',
     'data-testid': 'board',
     'data-animating': 'false',
+    'data-bounce-cycles': '0',
     'data-rejected': 'false',
     role: 'grid',
     'aria-label': TEXTS.boardLabel,
@@ -214,6 +215,8 @@ export function startApp(doc, rng) {
     selected = null;
   }
 
+  /** @type {number | null} */
+  let bouncingNow = null;
   boardEl.style.setProperty('--bounce-ms', `${BOUNCE_CYCLE_MS}ms`);
   const motion = createMotion(/** @type {Window} */ (doc.defaultView));
 
@@ -223,8 +226,19 @@ export function startApp(doc, rng) {
     cells.forEach((cell, index) => {
       cell.dataset.bouncing = String(index === bouncing);
     });
+    // The counter belongs to the ball that bounces now: any change of that ball restarts it.
+    if (bouncing !== bouncingNow) {
+      bouncingNow = bouncing;
+      boardEl.dataset.bounceCycles = '0';
+    }
   }
   motion.onChange(syncBounce);
+
+  // The event bubbles; only the ball that currently bounces counts, so a stale event is ignored.
+  boardEl.addEventListener('animationiteration', (event) => {
+    if (bouncingNow === null || event.target !== cells[bouncingNow].firstElementChild) return;
+    boardEl.dataset.bounceCycles = String(Number(boardEl.dataset.bounceCycles) + 1);
+  });
 
   function render() {
     game.board.forEach((color, index) => {
