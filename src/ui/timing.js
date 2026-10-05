@@ -14,3 +14,6 @@ export const SPAWN_MS = 300;
 export function moveStepMs(steps) {
   return Math.min(MOVE_STEP_MAX_MS, Math.floor(MOVE_TOTAL_MAX_MS / Math.max(1, steps)));
 }
+
+/** Time of one full bounce cycle (up and down) of the selected ball; 300 ms to 1 s. */
+export const BOUNCE_CYCLE_MS = 600;

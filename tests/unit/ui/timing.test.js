@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  BOUNCE_CYCLE_MS,
   CLEAR_MS,
   MOVE_TOTAL_MAX_MS,
   REJECT_MS,
@@ -28,5 +29,12 @@ describe('clear and spawn animation times', () => {
   it('stay at 300 ms, within the 1 s limit', () => {
     expect(CLEAR_MS).toBe(300);
     expect(SPAWN_MS).toBe(300);
+  });
+});
+
+describe('BOUNCE_CYCLE_MS', () => {
+  it('is between 300 ms and 1 s', () => {
+    expect(BOUNCE_CYCLE_MS).toBeGreaterThanOrEqual(300);
+    expect(BOUNCE_CYCLE_MS).toBeLessThanOrEqual(1000);
   });
 });
