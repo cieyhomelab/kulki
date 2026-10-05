@@ -198,6 +198,20 @@ test.describe('S24: the rest of the screen and the game work as before', () => {
             .toJSON(),
         ),
         preview: [...doc.querySelectorAll('[data-testid="preview-ball"]')].map(info),
+        panel: (() => {
+          const el = /** @type {Element} */ (doc.querySelector('[data-testid="preview"]'));
+          const style = globalThis.getComputedStyle(el);
+          const r = el.getBoundingClientRect();
+          const px = (/** @type {string} */ v) => parseFloat(v);
+          return {
+            left: r.left + px(style.borderLeftWidth) + px(style.paddingLeft),
+            right: r.right - px(style.borderRightWidth) - px(style.paddingRight),
+            bottom: r.bottom - px(style.borderBottomWidth) - px(style.paddingBottom),
+            labelLeft: /** @type {Element} */ (
+              doc.querySelector('[data-testid="preview-label"]')
+            ).getBoundingClientRect().left,
+          };
+        })(),
       };
     });
     /** @param {string} hex */
@@ -226,7 +240,13 @@ test.describe('S24: the rest of the screen and the game work as before', () => {
       expect(ball.shadow).toBe('none');
       expect(ball.filter).toBe('none');
       expect(ball.rect.width).toBe(ball.rect.height);
+      // Layout position is unchanged: the ball sits inside the panel content area.
+      expect(ball.rect.x).toBeGreaterThanOrEqual(data.panel.left - 1);
+      expect(ball.rect.x + ball.rect.width).toBeLessThanOrEqual(data.panel.right + 1);
+      expect(ball.rect.y + ball.rect.height).toBeLessThanOrEqual(data.panel.bottom + 1);
     });
+    expect(Math.abs(data.preview[0].rect.x - data.panel.left)).toBeLessThanOrEqual(1);
+    expect(Math.abs(data.preview[0].rect.x - data.panel.labelLeft)).toBeLessThanOrEqual(1);
   });
 
   test('S24: a cascade ball has the same fill as a board ball of the same colour', async ({
