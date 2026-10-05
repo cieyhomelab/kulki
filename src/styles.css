@@ -67,7 +67,8 @@ body {
   justify-self: start;
 }
 
-.layout {
+.layout,
+#app > .dialog {
   grid-column: 1 / -1;
 }
 
