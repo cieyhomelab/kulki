@@ -34,3 +34,18 @@ describe('CRT effect element', () => {
     expect(crt?.childNodes).toHaveLength(0);
   });
 });
+
+describe('CRT vignette element', () => {
+  it('is empty, hidden from assistive technology and a child of the body outside the app', async () => {
+    const { document } = (await loadGame()).window;
+    const vignette = document.querySelector('[data-testid="crt-vignette"]');
+    const app = document.querySelector('[data-testid="app"]');
+
+    expect(document.querySelectorAll('[data-testid="crt-vignette"]')).toHaveLength(1);
+    expect(vignette?.tagName).toBe('DIV');
+    expect(vignette?.getAttribute('aria-hidden')).toBe('true');
+    expect(vignette?.childNodes).toHaveLength(0);
+    expect(vignette?.parentElement).toBe(document.body);
+    expect(app?.contains(vignette)).toBe(false);
+  });
+});
