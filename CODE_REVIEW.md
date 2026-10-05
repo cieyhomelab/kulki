@@ -1,6 +1,6 @@
 # Reguły przeglądu kodu
 
-Reguły specyficzne dla tego repozytorium. Uzupełniają wbudowaną checklistę `om-code-review`; nie zastępują jej. Kontekst: [AGENTS.md](AGENTS.md), [specyfikacja gry](.ai/specs/2026-10-04-gra-w-kulki.md), [specyfikacja publikacji](.ai/specs/2026-10-04-publikacja-na-github-pages.md), [ADR 0001](docs/adr/0001-stos-technologiczny.md), [ADR 0002](docs/adr/0002-publikacja-na-github-pages.md).
+Reguły specyficzne dla tego repozytorium. Uzupełniają wbudowaną checklistę `om-code-review`; nie zastępują jej. Kontekst: [AGENTS.md](AGENTS.md), [specyfikacja gry](.ai/specs/2026-10-04-gra-w-kulki.md), [specyfikacja publikacji](.ai/specs/2026-10-04-publikacja-na-github-pages.md), [ADR 0001](docs/adr/0001-stos-technologiczny.md), [ADR 0002](docs/adr/0002-publikacja-na-github-pages.md), [specyfikacja podskakującej kulki i wyglądu retro](.ai/specs/2026-10-05-podskakujaca-kulka-i-wyglad-retro.md), [ADR 0003](docs/adr/0003-podskakujaca-kulka-i-wyglad-retro.md).
 
 ## Priorytety
 
@@ -45,6 +45,28 @@ Reguły specyficzne dla tego repozytorium. Uzupełniają wbudowaną checklistę 
 - [ ] Każda animacja i sygnał odmowy trwa najwyżej 1 s; reakcja na kliknięcie jest synchroniczna (≤ 100 ms).
 - [ ] Przy 1024×768 nic nie wymaga przewijania.
 - [ ] Brak `alert`, `confirm`, `prompt`; potwierdzenia to elementy HTML.
+
+### Podskakiwanie (S10–S13)
+
+- [ ] `data-bouncing="true"` ma najwyżej jedno pole i tylko wtedy, gdy jest zaznaczone, ma kulkę i ruch nie jest ograniczony; atrybut zmienia się synchronicznie w obsłudze kliknięcia.
+- [ ] Animacja kulki zmienia wyłącznie `transform`, jest nieskończona, bez `animation-direction: alternate`; element kulki nie ma `transition`.
+- [ ] Czas cyklu pochodzi z `BOUNCE_CYCLE_MS` (300–1000 ms) i trafia do CSS jako zmienna; nie ma drugiej wartości wpisanej w arkusz.
+- [ ] `data-bounce-cycles` rośnie tylko ze zdarzenia `animationiteration` i wraca do `0`, gdy zmienia się albo znika podskakujące pole.
+- [ ] Podskakiwanie nie ustawia `data-animating`, nie blokuje kliknięć i nie odtwarza dźwięku.
+- [ ] O ograniczonym ruchu decyduje `src/ui/motion.js` (z obsługą braku `matchMedia` i zmiany w trakcie gry); dla kulki nie ma reguły `@media (prefers-reduced-motion)`.
+- [ ] `outline` ma tylko pole zaznaczone bez podskakiwania.
+
+### Wygląd i czcionka (S14, S15)
+
+- [ ] Plik `src/fonts/PressStart2P-Regular.ttf` nie jest w diffie; `OFL.txt` leży obok niego. Czcionka trafia do produktu wyłącznie przez `tools/embed-fonts.js` jako `data:`.
+- [ ] Kolory i rozmiary są zmiennymi CSS; `--c1`…`--c7` mają niezmienione wartości; nie ma `prefers-color-scheme` ani `light-dark()`.
+- [ ] Tło pod napisami to jednolity `background-color`; kontrast napisu do tła co najmniej 4,5:1.
+- [ ] Elementy interfejsu mają `border-radius: 0` i jedną warstwę `box-shadow` (przesunięcia dodatnie, rozmycie 0); poświata nie jest dodatkową warstwą `box-shadow`.
+- [ ] Przyciski w stanie `:active` przesuwają się w stronę cienia; nie mają `transition`.
+- [ ] Element `crt` jest pusty, ma `aria-hidden="true"`, `pointer-events: none`, leży poza `#app` i nie ma animacji.
+- [ ] Brzmienie i kolejność napisów w DOM bez zmian; brak `text-transform` i napisów w `content`.
+- [ ] Okna pytania i końca gry nie zasłaniają pól planszy ani przycisków; całość mieści się w 1024×768 także z komunikatem o rekordzie.
+- [ ] `window.__kulki` i `src/ui/texts.js` nie są zmienione; żadna asercja w testach S1–S9 nie jest zmieniona.
 
 ### Zapis i błędy
 
@@ -92,7 +114,7 @@ Reguły specyficzne dla tego repozytorium. Uzupełniają wbudowaną checklistę 
 ## Ważność uwag
 
 - **Blocker:** złamane kryterium akceptacji; produkt przestaje być jednym plikiem albo sięga do sieci; publikacja możliwa bez zielonych testów, spoza `main` albo z plikiem innym niż `index.html`; uprawnienia do zapisu szersze niż opisane wyżej; utrata albo błędna interpretacja zapisanych danych gracza; czerwona bramka walidacji; sekret w repozytorium; wyłączony test.
-- **Major:** brak testu dla zmienionego zachowania; złamana granica modułów; zmiana chronionego kontraktu bez opisanej ścieżki; test niedeterministyczny albo ze stałym opóźnieniem; tekst nie po polsku.
+- **Major:** zmieniona asercja w istniejącym teście S1–S9 przy pracy nad S10–S16; zmieniony albo przycięty plik czcionki; brak testu dla zmienionego zachowania; złamana granica modułów; zmiana chronionego kontraktu bez opisanej ścieżki; test niedeterministyczny albo ze stałym opóźnieniem; tekst nie po polsku.
 - **Minor:** nazewnictwo, brak JSDoc, powtórzenia, czytelność.
 
 Blocker i major oznaczają `changes-requested`. Same minory nie blokują.

@@ -3,6 +3,7 @@
 Przeglądarkowa gra logiczna dla jednego gracza, inspirowana Color Lines / Kulki 98. Produktem jest jeden samodzielny plik `index.html`, który działa bez internetu.
 
 - Specyfikacja: [.ai/specs/2026-10-04-gra-w-kulki.md](.ai/specs/2026-10-04-gra-w-kulki.md)
+- Specyfikacja podskakującej kulki i wyglądu retro arcade: [.ai/specs/2026-10-05-podskakujaca-kulka-i-wyglad-retro.md](.ai/specs/2026-10-05-podskakujaca-kulka-i-wyglad-retro.md)
 - Stos technologiczny: [docs/adr/0001-stos-technologiczny.md](docs/adr/0001-stos-technologiczny.md)
 - Zasady pracy w repozytorium: [AGENTS.md](AGENTS.md)
 
@@ -37,3 +38,7 @@ scripts/test-integration.sh  # testy integracyjne na zbudowanym pliku
 scripts/test-e2e.sh          # Playwright w Docker Compose
 scripts/build.sh             # dist/index.html
 ```
+
+## Licencje
+
+Kod gry: MIT ([LICENSE](LICENSE)). Czcionka Press Start 2P (© 2012 The Press Start 2P Project Authors) jest rozpowszechniana na licencji SIL Open Font License 1.1; jej treść: [src/fonts/OFL.txt](src/fonts/OFL.txt).
