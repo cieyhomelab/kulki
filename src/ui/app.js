@@ -151,11 +151,10 @@ export function startApp(doc, rng) {
   const hero = el(doc, 'div', { 'data-testid': 'hero', class: 'hero' });
   hero.append(el(doc, 'h1', { 'data-testid': 'title' }, TEXTS.title));
 
-  const header = el(doc, 'header', { class: 'topbar' });
-  header.append(statBox(doc, TEXTS.score, 'score'), statBox(doc, TEXTS.bestScore, 'best-score'));
-
-  const side = el(doc, 'div', { class: 'controls' });
-  side.append(
+  const sidebar = el(doc, 'div', { class: 'sidebar', 'data-testid': 'sidebar' });
+  sidebar.append(
+    statBox(doc, TEXTS.score, 'score'),
+    statBox(doc, TEXTS.bestScore, 'best-score'),
     buildPreview(doc),
     el(
       doc,
@@ -166,10 +165,7 @@ export function startApp(doc, rng) {
     buildSoundToggle(doc, sounds),
   );
 
-  const main = el(doc, 'div', { class: 'layout' });
-  main.append(buildBoard(doc), side);
-
-  root.replaceChildren(hero, header, main);
+  root.replaceChildren(hero, buildBoard(doc), sidebar);
 
   /** @type {import('../game/game.js').GameState} */
   let game = readGame() ?? newGame(rng);
@@ -295,7 +291,7 @@ export function startApp(doc, rng) {
       panel.append(el(doc, 'span', { 'data-testid': 'game-over-record' }, TEXTS.gameOverRecord));
     }
     panel.append(newGameButton);
-    main.after(panel);
+    sidebar.append(panel);
   }
 
   function showConfirm() {
@@ -320,7 +316,7 @@ export function startApp(doc, rng) {
     yes.addEventListener('click', startNewGame);
     no.addEventListener('click', () => closeDialog('confirm-dialog'));
     panel.append(el(doc, 'span', {}, TEXTS.confirmQuestion), yes, no);
-    main.after(panel);
+    sidebar.append(panel);
   }
 
   byTestId('new-game').addEventListener('click', () => {

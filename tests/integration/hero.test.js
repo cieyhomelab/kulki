@@ -15,3 +15,22 @@ describe('hero block', () => {
     expect(title?.textContent).toBe('Kulki');
   });
 });
+
+describe('sidebar', () => {
+  it('holds the panels and buttons in order, and a window as its last child', async () => {
+    const { document } = (await loadGame()).window;
+    const sidebar = document.querySelector('[data-testid="sidebar"]');
+    const ids = () => [...(sidebar?.children ?? [])].map((c) => c.getAttribute('data-testid'));
+    expect(sidebar?.parentElement?.getAttribute('data-testid')).toBe('app');
+    expect(ids()).toEqual([
+      'score-panel',
+      'best-score-panel',
+      'preview',
+      'new-game',
+      'sound-toggle',
+    ]);
+
+    /** @type {HTMLElement | null} */ (document.querySelector('[data-testid="new-game"]'))?.click();
+    expect(ids().at(-1)).toBe('confirm-dialog');
+  });
+});

@@ -10,12 +10,20 @@
   --font-small: 8px;
   --font-medium: 16px;
   --font-large: 24px;
-  --cell: min(64px, calc((100vh - 150px) / 9), calc((100vw - 260px) / 9));
+  --sidebar-width: 230px;
+  --layout-gap: 24px;
+  --hero-reserve: 104px;
+  --safe-margin: 24px;
+  --cell: min(
+    64px,
+    calc((100vh - 2 * var(--safe-margin) - var(--hero-reserve) - 12px - 20px) / 9),
+    calc((100vw - 2 * var(--safe-margin) - var(--sidebar-width) - var(--layout-gap) - 20px) / 9)
+  );
   --page-bg: #05071a;
   --panel-bg: #0c1230;
-  --board-bg: #0c1230;
-  --cell-bg: #121a42;
-  --cell-border: #2a3a8a;
+  --board-bg: #4a7dff;
+  --cell-bg: #0a1236;
+  --cell-border: #4a7dff;
   --text-color: #e6eaff;
   --neon-green: #39ff14;
   --neon-cyan: #00e5ff;
@@ -55,23 +63,28 @@ body {
 
 #app {
   display: grid;
-  grid-template-columns: 1fr auto auto;
-  align-items: center;
-  gap: 12px 16px;
-}
-
-/* The bar's own box is gone: hero and the score panels are cells of the #app grid. */
-.topbar {
-  display: contents;
+  grid-template-columns: auto var(--sidebar-width);
+  align-items: start;
+  gap: 12px var(--layout-gap);
 }
 
 .hero {
+  grid-column: 1;
+  grid-row: 1;
   justify-self: start;
 }
 
-.layout,
-#app > .dialog {
-  grid-column: 1 / -1;
+/* The column is as wide as --sidebar-width and sits at the board's top edge; a dialog is its last child. */
+.sidebar {
+  grid-column: 2;
+  grid-row: 2;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 16px;
+  box-sizing: border-box;
+  width: var(--sidebar-width);
 }
 
 h1 {
@@ -86,7 +99,7 @@ h1 {
   align-items: center;
   gap: 10px;
   box-sizing: border-box;
-  min-width: 200px;
+  min-width: 0;
   padding: 10px 14px;
   background-color: var(--panel-bg);
   border: 3px solid var(--neon-cyan);
@@ -105,13 +118,9 @@ h1 {
   line-height: 1;
 }
 
-.layout {
-  display: flex;
-  gap: 20px;
-  align-items: flex-start;
-}
-
 .board {
+  grid-column: 1;
+  grid-row: 2;
   display: grid;
   grid-template-columns: repeat(9, var(--cell));
   grid-template-rows: repeat(9, var(--cell));
@@ -208,13 +217,6 @@ h1 {
   --ball: var(--c7);
 }
 
-.controls {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  width: 170px;
-}
-
 .preview {
   display: flex;
   flex-direction: column;
@@ -280,19 +282,17 @@ h1 {
   font-size: var(--font-small);
   line-height: 1.5;
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
   gap: 12px;
   padding: 10px 14px;
+  overflow-wrap: anywhere;
   border: 2px solid var(--cell-border);
   border-radius: 0;
   box-shadow: var(--shadow-offset) var(--shadow-offset) 0 0 var(--shadow-color);
   background-color: var(--panel-bg);
   color: var(--text-color);
   border-color: var(--neon-magenta);
-}
-
-.dialog .button {
-  margin-left: 4px;
 }
 
 /* CRT screen effect: a static, empty overlay above the whole game: rounded edge, black outside it, scanlines, vignette and a glass glare. */
