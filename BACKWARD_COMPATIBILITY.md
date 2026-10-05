@@ -1,6 +1,6 @@
 # Chronione kontrakty
 
-Powierzchnie, od których zależą gracze, testy albo inni agenci. Zmiana którejkolwiek wymaga ścieżki opisanej przy niej. Pełne definicje są w sekcjach technicznych [specyfikacji gry](.ai/specs/2026-10-04-gra-w-kulki.md), [specyfikacji publikacji](.ai/specs/2026-10-04-publikacja-na-github-pages.md), [specyfikacji podskakującej kulki i wyglądu retro](.ai/specs/2026-10-05-podskakujaca-kulka-i-wyglad-retro.md) i [specyfikacji ekranu kineskopu, neonowego tytułu i nowego układu](.ai/specs/2026-10-05-ekran-kineskopu-neonowy-tytul-i-nowy-uklad.md); tu jest lista i zasady zmian.
+Powierzchnie, od których zależą gracze, testy albo inni agenci. Zmiana którejkolwiek wymaga ścieżki opisanej przy niej. Pełne definicje są w sekcjach technicznych [specyfikacji gry](.ai/specs/2026-10-04-gra-w-kulki.md), [specyfikacji publikacji](.ai/specs/2026-10-04-publikacja-na-github-pages.md), [specyfikacji podskakującej kulki i wyglądu retro](.ai/specs/2026-10-05-podskakujaca-kulka-i-wyglad-retro.md) , [specyfikacji ekranu kineskopu, neonowego tytułu i nowego układu](.ai/specs/2026-10-05-ekran-kineskopu-neonowy-tytul-i-nowy-uklad.md) i [specyfikacji kulek bez linii skanowania](.ai/specs/2026-10-05-kulki-bez-linii-skanowania.md); tu jest lista i zasady zmian.
 
 Projekt nie ma API sieciowego, bazy danych, CLI ani publikowanego pakietu.
 
@@ -25,6 +25,8 @@ Wartości `data-testid` oraz atrybuty stanu (`data-color`, `data-selected`, `dat
 Od specyfikacji S10–S16, po wdrożeniu odpowiednich kroków, także: element kulki `ball-{wiersz}-{kolumna}` w każdym polu, atrybuty `data-bouncing` (pole) i `data-bounce-cycles` (plansza), identyfikatory `title`, `score-panel`, `score-label`, `best-score-panel`, `best-score-label`, `preview-label`, `crt`, zmienne CSS `--c1`…`--c7` z kolorami kulek, nazwa rodziny czcionki `Press Start 2P` oraz brzmienie i kolejność napisów widocznych na ekranie.
 
 Od specyfikacji S17–S21, po wdrożeniu odpowiednich kroków, także: identyfikatory `hero`, `sidebar`, `cascade`, `cascade-ball` (z atrybutem `data-color`) i `crt-glare`; położenie okien jako ostatniego dziecka `sidebar`; zmienne CSS `--title-fill`, `--title-stroke-color`, `--title-stroke-width`, `--title-depth-color`, `--title-depth-offset`, `--title-glow-color`, `--title-glow-blur`, `--crt-edge-radius`, `--crt-scanline-alpha` i `--crt-glow-blur`; sposób zapisu wyglądu tytułu (obrys w `-webkit-text-stroke`, głębia i poświata w `text-shadow`) i krawędzi ekranu (`border-radius` elementu `crt`), bo z nich czytają testy.
+
+Od specyfikacji S22–S24, po wdrożeniu odpowiednich kroków, także: identyfikator `crt-vignette`; zmienne CSS `--z-scanlines`, `--z-ball`, `--z-vignette`, `--z-glare` i ich kolejność; to, że gradient linii skanowania jest w tle elementu `crt`, a jego kolor powstaje wyłącznie z `--crt-scanline-alpha` (testy wyłączają linie, ustawiając tę zmienną na `0`); to, że krążek kulki gry jest prostokątem elementu `ball-{wiersz}-{kolumna}` albo `preview-ball` z jego `transform`.
 
 **Brzmienie tytułu.** Tytuł na ekranie brzmi „KULKI” (krok 2.1 specyfikacji S17–S21 wdrożony; wcześniej „Kulki”). To jedyna zaplanowana zmiana brzmienia napisu: krok 2.1 zmienia `src/ui/texts.js`, napis zastępczy w szablonie i oczekiwane brzmienie tytułu w istniejących testach w jednym PR. Nazwa karty przeglądarki (`<title>`) pozostaje „Kulki”.
 

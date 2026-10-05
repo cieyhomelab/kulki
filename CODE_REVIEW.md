@@ -1,6 +1,6 @@
 # Reguły przeglądu kodu
 
-Reguły specyficzne dla tego repozytorium. Uzupełniają wbudowaną checklistę `om-code-review`; nie zastępują jej. Kontekst: [AGENTS.md](AGENTS.md), [specyfikacja gry](.ai/specs/2026-10-04-gra-w-kulki.md), [specyfikacja publikacji](.ai/specs/2026-10-04-publikacja-na-github-pages.md), [ADR 0001](docs/adr/0001-stos-technologiczny.md), [ADR 0002](docs/adr/0002-publikacja-na-github-pages.md), [specyfikacja podskakującej kulki i wyglądu retro](.ai/specs/2026-10-05-podskakujaca-kulka-i-wyglad-retro.md), [ADR 0003](docs/adr/0003-podskakujaca-kulka-i-wyglad-retro.md), [specyfikacja ekranu kineskopu, neonowego tytułu i nowego układu](.ai/specs/2026-10-05-ekran-kineskopu-neonowy-tytul-i-nowy-uklad.md), [ADR 0004](docs/adr/0004-ekran-kineskopu-neonowy-tytul-i-nowy-uklad.md).
+Reguły specyficzne dla tego repozytorium. Uzupełniają wbudowaną checklistę `om-code-review`; nie zastępują jej. Kontekst: [AGENTS.md](AGENTS.md), [specyfikacja gry](.ai/specs/2026-10-04-gra-w-kulki.md), [specyfikacja publikacji](.ai/specs/2026-10-04-publikacja-na-github-pages.md), [ADR 0001](docs/adr/0001-stos-technologiczny.md), [ADR 0002](docs/adr/0002-publikacja-na-github-pages.md), [specyfikacja podskakującej kulki i wyglądu retro](.ai/specs/2026-10-05-podskakujaca-kulka-i-wyglad-retro.md), [ADR 0003](docs/adr/0003-podskakujaca-kulka-i-wyglad-retro.md), [specyfikacja ekranu kineskopu, neonowego tytułu i nowego układu](.ai/specs/2026-10-05-ekran-kineskopu-neonowy-tytul-i-nowy-uklad.md), [ADR 0004](docs/adr/0004-ekran-kineskopu-neonowy-tytul-i-nowy-uklad.md), [specyfikacja kulek bez linii skanowania](.ai/specs/2026-10-05-kulki-bez-linii-skanowania.md), [ADR 0005](docs/adr/0005-kulki-bez-linii-skanowania.md).
 
 ## Priorytety
 
@@ -86,6 +86,20 @@ Reguły specyficzne dla tego repozytorium. Uzupełniają wbudowaną checklistę 
 - [ ] Brak `transform`, `filter`, `perspective` i `backdrop-filter` na `#app`, planszy i ich przodkach; brak animacji i `transition` na tytule, kulach, `crt` i `crt-glare`.
 - [ ] Nie ma obrazów, SVG ani `<canvas>` w produkcie; kulki planszy i podglądu nie dostały cienia ani poświaty.
 
+### Kulki bez linii skanowania (S22–S24)
+
+- [ ] Kolejność warstw pochodzi ze zmiennych `--z-*` i spełnia `--z-scanlines` < `--z-ball` < `--z-vignette` < `--z-glare`; w regułach nie ma `z-index` wpisanego liczbą.
+- [ ] `z-index` z `--z-ball` mają tylko kulki planszy i podglądu, w osobnej regule; wspólna reguła wypełnienia kulek go nie zawiera, więc kule kaskady zostają pod liniami.
+- [ ] Żaden przodek kulki gry nie tworzy kontekstu stosu: brak `transform`, `opacity` poniżej 1, `filter`, `z-index`, `isolation`, `mix-blend-mode`, `will-change` i `contain` na `#app`, planszy, polu, kolumnie bocznej i panelu podglądu, także w animacjach i w stanie `data-rejected="true"`.
+- [ ] Sygnał odmowy ruchu przesuwa planszę właściwością `left`, o te same wartości i w tym samym czasie co dotąd; `REJECT_MS` bez zmian.
+- [ ] Gradient linii jest w tle `crt`, a jego kolor powstaje wyłącznie z `--crt-scanline-alpha`; nadpisanie tej zmiennej na `0` usuwa wszystkie linie z ekranu.
+- [ ] Przyciemnienie brzegów rysuje tylko `crt-vignette` (kolor `--crt-vignette-color`); `radial-gradient` w tle `crt` jest w pełni przezroczysty i ma komentarz z powodem.
+- [ ] `crt-vignette` jest pusty, ma `aria-hidden="true"`, `position: fixed`, `pointer-events: none`, leży w `body` po `crt-glare` i ma ten sam `border-radius` i zewnętrzny `box-shadow` co `crt`; nie ma animacji ani `transition`.
+- [ ] Kulka nie dostała cienia, poświaty, obrysu ani innego wypełnienia; kształt, odstęp 12% i kolory `--c1`…`--c7` bez zmian.
+- [ ] Nie doszedł kod JavaScript śledzący położenie kulek; `src/ui/`, `src/test-api.js` i `window.__kulki` nie są zmienione.
+- [ ] Żadna asercja w testach S1–S21 nie jest zmieniona.
+- [ ] Testy porównują zrzut z obrazem odniesienia wykonanym w tym samym teście (`--crt-scanline-alpha: 0`, potem usunięcie nadpisania), ze zrzutami w skali `css`; progi (3 na składową, 10% sumy, pas 2 px) są stałymi pomocnika, nie liczbami rozsianymi po testach.
+
 ### Zapis i błędy
 
 - [ ] Każdy odczyt z `localStorage` jest w `try/catch` i przechodzi walidację kształtu i zakresów; niepoprawna dana daje wartość domyślną, a pozostałe dwie dane nie są ruszane.
@@ -132,7 +146,7 @@ Reguły specyficzne dla tego repozytorium. Uzupełniają wbudowaną checklistę 
 ## Ważność uwag
 
 - **Blocker:** złamane kryterium akceptacji; produkt przestaje być jednym plikiem albo sięga do sieci; publikacja możliwa bez zielonych testów, spoza `main` albo z plikiem innym niż `index.html`; uprawnienia do zapisu szersze niż opisane wyżej; utrata albo błędna interpretacja zapisanych danych gracza; czerwona bramka walidacji; sekret w repozytorium; wyłączony test.
-- **Major:** zmieniona asercja w istniejącym teście S1–S9 przy pracy nad S10–S16; zmieniona asercja S1–S13 inna niż brzmienie tytułu w kroku 2.1 specyfikacji S17–S21 albo zmieniona asercja S14–S16 bez wskazanego wiersza tabeli zmian; kaskada kul zużywająca losowania gry; zmieniony albo przycięty plik czcionki; brak testu dla zmienionego zachowania; złamana granica modułów; zmiana chronionego kontraktu bez opisanej ścieżki; test niedeterministyczny albo ze stałym opóźnieniem; tekst nie po polsku.
+- **Major:** zmieniona asercja w istniejącym teście S1–S9 przy pracy nad S10–S16; zmieniona asercja S1–S21 przy pracy nad S22–S24; kontekst stosu na przodku kulki gry; zmieniona asercja S1–S13 inna niż brzmienie tytułu w kroku 2.1 specyfikacji S17–S21 albo zmieniona asercja S14–S16 bez wskazanego wiersza tabeli zmian; kaskada kul zużywająca losowania gry; zmieniony albo przycięty plik czcionki; brak testu dla zmienionego zachowania; złamana granica modułów; zmiana chronionego kontraktu bez opisanej ścieżki; test niedeterministyczny albo ze stałym opóźnieniem; tekst nie po polsku.
 - **Minor:** nazewnictwo, brak JSDoc, powtórzenia, czytelność.
 
 Blocker i major oznaczają `changes-requested`. Same minory nie blokują.
