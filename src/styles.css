@@ -12,6 +12,12 @@
   --c5: #00acc1;
   --c6: #1e53d6;
   --c7: #8e24aa;
+  --crt-scanline-color: rgb(0 0 0 / 0.12);
+  --crt-scanline-period: 4px;
+  --crt-scanline-width: 2px;
+  --crt-vignette-color: rgb(0 0 0 / 0.35);
+  --crt-glow-blur: 3px;
+  --crt-glow-strength: 40%;
 }
 
 body {
@@ -189,4 +195,26 @@ h1 {
 
 .dialog .button {
   margin-left: 4px;
+}
+
+/* CRT screen effect: a static, empty overlay above the whole game. */
+body {
+  text-shadow: 0 0 var(--crt-glow-blur)
+    color-mix(in srgb, currentColor var(--crt-glow-strength), transparent);
+}
+
+[data-testid='crt'] {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at center, transparent 60%, var(--crt-vignette-color) 100%),
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent calc(var(--crt-scanline-period) - var(--crt-scanline-width)),
+      var(--crt-scanline-color) calc(var(--crt-scanline-period) - var(--crt-scanline-width)),
+      var(--crt-scanline-color) var(--crt-scanline-period)
+    );
 }
