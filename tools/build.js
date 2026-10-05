@@ -1,7 +1,8 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
+import { embedFonts } from './embed-fonts.js';
 import { inlineAssets } from './inline.js';
 import { resolveVersion } from './version.js';
 
@@ -29,7 +30,20 @@ const [template, css] = await Promise.all([
   readFile(path.join(srcDir, 'styles.css'), 'utf8'),
 ]);
 
-const html = inlineAssets(template, { css, js: bundle.outputFiles[0].text, version });
+// Only the font files themselves; the licence text stays in the repository.
+const fontsDir = path.join(srcDir, 'fonts');
+const fontFiles = (await readdir(fontsDir)).filter((name) => name.endsWith('.ttf'));
+const fonts = Object.fromEntries(
+  await Promise.all(
+    fontFiles.map(async (name) => [name, await readFile(path.join(fontsDir, name))]),
+  ),
+);
+
+const html = inlineAssets(template, {
+  css: embedFonts(css, fonts),
+  js: bundle.outputFiles[0].text,
+  version,
+});
 
 await mkdir(path.dirname(outFile), { recursive: true });
 await writeFile(outFile, html);

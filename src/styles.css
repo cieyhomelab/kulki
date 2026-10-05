@@ -1,6 +1,15 @@
+@font-face {
+  font-family: 'Press Start 2P';
+  src: url('./fonts/PressStart2P-Regular.ttf') format('truetype');
+  font-display: block;
+}
+
 :root {
   color-scheme: light dark;
-  font-family: system-ui, sans-serif;
+  font-family: 'Press Start 2P', ui-monospace, 'Courier New', monospace;
+  --font-small: 8px;
+  --font-medium: 16px;
+  --font-large: 24px;
   --cell: min(64px, calc((100vh - 150px) / 9), calc((100vw - 260px) / 9));
   --board-bg: #cfd4dc;
   --cell-bg: #e6e9ee;
@@ -41,24 +50,23 @@ body {
 
 h1 {
   margin: 0 auto 0 0;
-  font-size: 1.6rem;
+  font-size: var(--font-large);
 }
 
 .stat {
   display: flex;
   flex-direction: column;
   align-items: center;
-  min-width: 110px;
+  min-width: 150px;
 }
 
 .stat-label {
-  font-size: 0.85rem;
+  font-size: var(--font-small);
   opacity: 0.75;
 }
 
 .stat-value {
-  font-size: 1.5rem;
-  font-weight: 700;
+  font-size: var(--font-large);
 }
 
 .layout {
@@ -154,6 +162,7 @@ h1 {
 
 .button {
   font: inherit;
+  font-size: var(--font-small);
   padding: 10px 12px;
   cursor: pointer;
 }
@@ -186,6 +195,8 @@ h1 {
 }
 
 .dialog {
+  font-size: var(--font-small);
+  line-height: 1.5;
   display: flex;
   align-items: center;
   gap: 12px;
