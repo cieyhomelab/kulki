@@ -147,7 +147,13 @@ describe('move animation', () => {
     const window = /** @type {any} */ ((await loadGame()).window);
     // The ball in the corner survives the clear: an emptied board would get new balls at random
     // cells, and one of them could land on the sampled cell.
-    const board = ['1111.....', '.........', '....1....', ...Array(5).fill('.........'), '........2'];
+    const board = [
+      '1111.....',
+      '.........',
+      '....1....',
+      ...Array(5).fill('.........'),
+      '........2',
+    ];
     const { cell, click, done } = start(window, board);
     click(2, 4);
     click(0, 4);
