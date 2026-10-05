@@ -34,3 +34,21 @@ describe('sidebar', () => {
     expect(ids().at(-1)).toBe('confirm-dialog');
   });
 });
+
+describe('cascade', () => {
+  it('is a hidden, textless child of the hero with colour-tagged balls', async () => {
+    const { document } = (await loadGame()).window;
+    const hero = document.querySelector('[data-testid="hero"]');
+    const cascade = document.querySelector('[data-testid="cascade"]');
+    expect(cascade?.parentElement).toBe(hero);
+    expect(cascade?.getAttribute('aria-hidden')).toBe('true');
+    expect(cascade?.textContent).toBe('');
+    const balls = document.querySelectorAll('[data-testid="cascade-ball"]');
+    expect(balls.length).toBeGreaterThanOrEqual(7);
+    for (const ball of balls) {
+      expect(ball.parentElement).toBe(cascade);
+      expect(ball.getAttribute('data-color')).toMatch(/^[1-7]$/);
+      expect(ball.classList.contains('ball')).toBe(false);
+    }
+  });
+});
